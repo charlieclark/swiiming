@@ -34,7 +34,7 @@ npm run build
 ## What the swimmers do
 
 - Tread water, with arms tucked in when they are crowded or near a wall.
-- Look relaxed while peeing.
+- Look relaxed while peeing, and ignore the water around them until they stop.
 - Panic when the water at their face goes bad, and swim toward cleaner water if there is any nearby.
 - Give up after enough time in bad water: they float on their back (or just hang there if there is no room).
 

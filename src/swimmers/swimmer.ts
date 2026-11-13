@@ -281,8 +281,11 @@ export class Swimmer {
     else if (this.spawn < 1) this.spawn = Math.min(1, this.spawn + dt * 2.2);
 
     // Exposure, with hysteresis so the mood does not flicker.
+    // A swimmer who is peeing is in no position to object: they ignore the water around
+    // them until they have finished.
+    const oblivious = this.peeing || this.flowNow > 0.002;
     const exposedNow =
-      this.exposure > EXPOSURE_ON || (this.exposedFor > 0 && this.exposure > EXPOSURE_OFF);
+      !oblivious && (this.exposure > EXPOSURE_ON || (this.exposedFor > 0 && this.exposure > EXPOSURE_OFF));
     if (exposedNow) {
       this.exposedFor += dt;
       this.clearFor = 0;
@@ -291,10 +294,11 @@ export class Swimmer {
       this.stress = Math.min(RESIGNATION_SECONDS + 4, this.stress + dt);
     } else {
       this.clearFor += dt;
-      if (this.clearFor > 0.7) this.exposedFor = 0;
+      if (this.clearFor > 0.7 || oblivious) this.exposedFor = 0;
       this.stress = Math.max(0, this.stress - dt * 0.3);
     }
-    if (this.stress >= RESIGNATION_SECONDS) this.givenUp = true;
+    if (oblivious) this.givenUp = false;
+    else if (this.stress >= RESIGNATION_SECONDS) this.givenUp = true;
     else if (this.stress < RESIGNATION_SECONDS * 0.6) this.givenUp = false;
     this.mood = this.givenUp ? 'resigned' : this.exposedFor > 0 ? 'exposed' : 'calm';
 
