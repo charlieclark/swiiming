@@ -95,6 +95,8 @@ export class Swimmer {
   private pupils: THREE.Object3D[] = [];
   private brows: THREE.Object3D[] = [];
   private mouth: THREE.Object3D;
+  /** Upturned corners of the mouth, shown only when smiling. */
+  private smile: THREE.Object3D[] = [];
   private skull: THREE.Object3D;
   private pelvis: THREE.Object3D;
   private seed = Math.random() * 100;
@@ -201,6 +203,11 @@ export class Swimmer {
     }
     part(this.head, Shape.Bead, skin, 0, cy - 0.024, cz + 0.111, 0.014, 0.022, 0.017);
     this.mouth = part(this.head, Shape.Bead, MOUTH, 0, cy - 0.064, cz + 0.091, MOUTH_W, MOUTH_H, 0.012);
+    for (let side = -1; side <= 1; side += 2) {
+      const corner = part(this.head, Shape.Bead, MOUTH, 0.031 * side, cy - 0.0575, cz + 0.087, 0, 0, 0);
+      corner.rotation.z = side * 0.72;
+      this.smile.push(corner);
+    }
 
     // Arms
     for (let side = -1; side <= 1; side += 2) {
@@ -323,10 +330,11 @@ export class Swimmer {
     p[PITCH] = 0.07;
     p[RISE] = 0.012 * Math.sin(ph * 2) * (1 - 0.5 * this.relief);
     p[ROLL] = 0.028 * Math.sin(ph);
-    p[HEAD_PITCH] = -0.07 - 0.2 * this.relief;
+    // Bliss: head tipped back and to one side, swaying slowly.
+    p[HEAD_PITCH] = -0.07 - (0.3 + 0.04 * Math.sin(t * 0.9)) * this.relief;
     // Idle glances; while peeing, a studied look at nothing in particular.
     const idle = 0.3 * Math.sin(t * 0.37) + 0.16 * Math.sin(t * 0.83 + 1.7);
-    const away = 0.55 * (this.seed > 50 ? 1 : -1) + 0.08 * Math.sin(t * 0.5);
+    const away = 0.22 * (this.seed > 50 ? 1 : -1) + 0.1 * Math.sin(t * 0.45);
     p[HEAD_YAW] = idle * (1 - this.relief) + away * this.relief;
     p[SHIFT] = 0;
     const raise = 0.42 + (1.3 - 0.42) * k - 0.1 * this.lift;
@@ -411,7 +419,8 @@ export class Swimmer {
     );
     this.body.rotation.set(p[PITCH] + lean, 0, p[ROLL]);
     this.lookYaw = approach(this.lookYaw, p[HEAD_YAW], this.wPanic > 0.5 ? 12 : 2.5, dt);
-    this.headPivot.rotation.set(p[HEAD_PITCH] - lean, this.lookYaw, -p[ROLL]);
+    const tilt = (0.13 * (this.seed > 50 ? -1 : 1) + 0.05 * Math.sin((time + this.seed) * 0.6)) * this.relief;
+    this.headPivot.rotation.set(p[HEAD_PITCH] - lean, this.lookYaw, -p[ROLL] + tilt);
 
     for (let i = 0; i < 2; i++) {
       const arm = this.arms[i];
@@ -430,23 +439,28 @@ export class Swimmer {
     const panic = this.panicFace;
     const relief = this.relief;
     const blink = panic < 0.5 && Math.sin(t * 0.9) > 0.995 ? 0.12 : 1;
-    const open = Math.max(0.1, (1 - 0.55 * relief + 0.32 * panic) * blink);
+    const open = Math.max(0.1, (1 + 0.32 * panic) * blink);
     const pupil = 0.0105 * (1 - 0.18 * panic);
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
-      this.whites[i].scale.set(0.02 * (1 + 0.12 * panic), 0.016 * open, 0.008);
-      this.pupils[i].scale.set(pupil, Math.min(pupil, 0.015 * open), 0.005);
+      // Peeing: eyes close into contented lines that slope down at the outer ends.
+      this.whites[i].scale.set(0.02 * (1 + 0.12 * panic), 0.016 * open * (1 - relief), 0.008);
+      const lid = this.pupils[i];
+      lid.scale.set(pupil + (0.018 - pupil) * relief, Math.min(pupil, 0.015 * open) * (1 - relief) + 0.0028 * relief, 0.005);
+      lid.rotation.z = -side * 0.3 * relief;
       const brow = this.brows[i];
-      brow.position.y = HEAD_Y + BROW_Y + 0.008 * relief + 0.01 * panic;
-      brow.rotation.z = -side * (0.38 * panic - 0.1 * relief);
+      brow.position.y = HEAD_Y + BROW_Y + 0.013 * relief + 0.01 * panic;
+      brow.rotation.z = -side * (0.38 * panic + 0.14 * relief);
     }
+    // Mouth: a wide closed smile when peeing, an open "o" when panicking.
     const scream = 0.85 + 0.15 * Math.sin(t * 5);
     this.mouth.scale.set(
-      MOUTH_W * (1 - 0.5 * relief + 0.1 * panic),
-      MOUTH_H * (1 + 2.0 * relief + 3.6 * panic * scream),
+      MOUTH_W * (1 + 0.12 * relief + 0.1 * panic),
+      MOUTH_H * (1 - 0.1 * relief + 3.6 * panic * scream),
       0.012,
     );
     this.mouth.position.y = HEAD_Y - 0.064 - 0.006 * panic;
+    for (const corner of this.smile) corner.scale.set(0.0115 * relief, MOUTH_H * 0.95 * relief, 0.011 * relief);
 
     this.root.updateMatrix();
     this.root.matrixWorld.copy(this.root.matrix);
