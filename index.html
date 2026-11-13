@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#e7ecef" />
+    <meta name="description" content="A rigorous simulation of urine dispersion in a swimming pool." />
+    <title>Aquatic Micturition Dispersion Study</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f2c41c'/%3E%3Cpath d='M16 6c4 6 7 9.500 7 13.500a7 7 0 0 1-14 0C9 15.500 12 12 16 6z' fill='%2317232c'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/ui/styles.css" />
+  </head>
+  <body>
+    <canvas id="scene" aria-label="3D view of the test tank"></canvas>
+    <div id="labels" aria-hidden="true"></div>
+
+    <div id="chip" aria-hidden="true">
+      <div class="study">Study 26-114 <span>Rev. C</span></div>
+      <div class="chip-title">Aquatic Micturition Dispersion</div>
+    </div>
+
+    <aside id="panel" class="collapsed">
+      <header class="masthead">
+        <div class="study">Study 26-114 <span>Rev. C</span></div>
+        <h1>Aquatic Micturition Dispersion</h1>
+      </header>
+
+      <button id="sheet-toggle" type="button" aria-expanded="false" aria-controls="panel-body">
+        <span class="summary"><b id="summary-ppm">0.00 ppm</b><span id="summary-text">Baseline</span></span>
+        <span class="chev">Parameters</span>
+      </button>
+
+      <div id="panel-body">
+        <section>
+          <h2>Tank</h2>
+          <label class="row">
+            <span>Width</span>
+            <input id="dim-width" type="range" />
+            <output id="out-width"></output>
+          </label>
+          <label class="row">
+            <span>Length</span>
+            <input id="dim-length" type="range" />
+            <output id="out-length"></output>
+          </label>
+          <label class="row">
+            <span>Depth</span>
+            <input id="dim-depth" type="range" />
+            <output id="out-depth"></output>
+          </label>
+          <div class="kv"><span>Volume</span><b id="volume"></b></div>
+        </section>
+
+        <section>
+          <h2>Subjects</h2>
+          <div class="stepper">
+            <button id="sub-minus" type="button" aria-label="Remove a subject">&minus;</button>
+            <output id="sub-count">0</output>
+            <button id="sub-plus" type="button" aria-label="Add a subject">+</button>
+            <p>Treading water. Drag a subject to reposition.</p>
+          </div>
+        </section>
+
+        <section>
+          <h2>Readout</h2>
+          <div class="big"><b id="ppm">0.00</b><span id="ppm-unit">ppm</span></div>
+          <div class="caption">Urine concentration, tank average (v/v)</div>
+          <div class="meter" role="img" aria-label="Concentration on a logarithmic scale">
+            <div class="fill" id="meter-fill"></div>
+            <div class="ref" id="meter-ref"><span>public pool<sup>1</sup></span></div>
+          </div>
+          <div class="assessment" id="assessment">Baseline. No analyte detected.</div>
+          <div class="kv"><span>Released</span><b id="released">0.00 L</b></div>
+          <div class="kv"><span>Release events</span><b id="events">0</b></div>
+          <div class="kv"><span>Elapsed</span><b id="elapsed">00:00</b></div>
+        </section>
+
+        <section class="actions">
+          <button id="drain" type="button">Drain and refill</button>
+          <button id="sound" type="button" aria-pressed="true">Sound on</button>
+        </section>
+
+        <footer>
+          <p><sup>1</sup> Approx. 90 ppm: an estimated 75 L in an 830,000 L public pool. Blackstock et al., <i>Environ. Sci. Technol. Lett.</i>, 2017.</p>
+          <p>Tracer gain applied for visibility. At these concentrations urine cannot be seen, which is the problem.</p>
+        </footer>
+      </div>
+    </aside>
+
+    <div id="action">
+      <button id="pee" type="button"><span class="fill"></span><span class="text">PEE</span></button>
+      <div id="pee-sub">Initiate simultaneous release</div>
+    </div>
+
+    <ol id="log" aria-live="polite"></ol>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
