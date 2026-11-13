@@ -199,10 +199,6 @@ export class Swimmer {
     }
     part(this.head, Shape.Bead, skin, 0, cy - 0.024, cz + 0.111, 0.014, 0.022, 0.017);
     this.mouth = part(this.head, Shape.Bead, MOUTH, 0, cy - 0.064, cz + 0.091, MOUTH_W, MOUTH_H, 0.012);
-    if (look.facial !== 'none') part(this.head, Shape.Box, hair, 0, cy - 0.046, cz + 0.103, 0.054, 0.012, 0.014);
-    // A full beard wraps the jaw from below the nose to just under the chin; the mouth
-    // sits a few millimetres proud of it so expressions still read.
-    if (look.facial === 'beard') part(this.head, Shape.Sphere, hair, 0, cy - 0.09, cz + 0.02, 0.092, 0.055, 0.088);
 
     // Arms
     for (let side = -1; side <= 1; side += 2) {

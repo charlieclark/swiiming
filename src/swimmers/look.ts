@@ -2,7 +2,6 @@
 
 export type Headwear = 'cap' | 'short' | 'bald' | 'bun' | 'long';
 export type Suit = 'trunks' | 'briefs' | 'jammers' | 'onepiece' | 'twopiece' | 'rashguard';
-export type Facial = 'none' | 'moustache' | 'beard';
 
 export interface Look {
   /** Overall scale; 1.0 is 1.78 m tall. */
@@ -20,7 +19,6 @@ export interface Look {
   suitColor: number;
   suitColor2: number;
   goggles: boolean;
-  facial: Facial;
   /** Peak flow rate, litres per second. */
   flow: number;
 }
@@ -72,8 +70,8 @@ export function makeLook(id: number): Look {
 
   const feminineCut = r() < 0.5;
   const skin = pick(SKIN);
-  // Hair that nearly matches the skin reads as a bald scalp (and a beard as a swollen
-  // chin), so swap in near-black or grey when the two are too close in brightness.
+  // Hair that nearly matches the skin reads as a bald scalp, so swap in near-black or
+  // grey when the two are too close in brightness.
   let hair = pick(HAIR);
   if (Math.abs(luma(hair) - luma(skin)) < 0.16) hair = Math.abs(luma(0x17120f) - luma(skin)) >= 0.16 ? 0x17120f : 0x8c8c8c;
   const headwear = weighted<Headwear>(
@@ -101,7 +99,6 @@ export function makeLook(id: number): Look {
     suitColor: pick(SUITS),
     suitColor2: pick(SUITS),
     goggles: r() < 0.22 && headwear !== 'bald',
-    facial: feminineCut ? 'none' : weighted<Facial>([['none', 7], ['moustache', 1], ['beard', 1.5]]),
     flow: 0.02 + r() * 0.014,
   };
 }
