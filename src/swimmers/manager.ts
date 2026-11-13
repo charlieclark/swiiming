@@ -367,10 +367,17 @@ export class SwimmerManager {
         const side = i === 0 ? -1 : 1;
         const strength =
           0.0016 * s.vigor * calm * pulse * side + s.splash * 0.02 * (Math.random() - 0.5) * (hand.y > -0.12 ? 2 : 1);
-        this.ripples.addDrop(hand.x, hand.z, 0.17, strength);
+        this.ripples.addDrop(hand.x, hand.z, 0.17, strength, hand.y > -0.1 ? 0.07 + 0.2 * s.splash : 0);
       }
       s.headPosition(hand);
-      this.ripples.addDrop(hand.x, hand.z, 0.3, (0.0009 + 0.0022 * s.splash) * Math.sin(s.phase * 2) * (0.4 + s.vigor));
+      // The neck is where the body meets the surface: a collar of foam marks the waterline.
+      this.ripples.addDrop(
+        hand.x,
+        hand.z,
+        (0.33 + 0.12 * s.splash) * s.look.height,
+        (0.0009 + 0.0022 * s.splash) * Math.sin(s.phase * 2) * (0.4 + s.vigor),
+        0.26 + 0.2 * s.splash,
+      );
       if (speed > 0.12) {
         this.ripples.addDrop(hand.x + (s.vx / speed) * 0.22, hand.z + (s.vz / speed) * 0.22, 0.3, Math.min(0.014, speed * 0.008));
       }

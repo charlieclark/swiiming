@@ -35,6 +35,11 @@ const SUITS = [
   0x2c2c6e,
 ];
 
+/** Perceived brightness of a 0xRRGGBB colour, 0 to 1. */
+function luma(hex: number) {
+  return (((hex >> 16) & 255) * 0.299 + ((hex >> 8) & 255) * 0.587 + (hex & 255) * 0.114) / 255;
+}
+
 function mulberry32(seed: number) {
   let a = seed >>> 0;
   return () => {
@@ -66,7 +71,11 @@ export function makeLook(id: number): Look {
   const bell = () => r() + r() - 1;
 
   const feminineCut = r() < 0.5;
-  const hair = pick(HAIR);
+  const skin = pick(SKIN);
+  // Hair that nearly matches the skin reads as a bald scalp (and a beard as a swollen
+  // chin), so swap in near-black or grey when the two are too close in brightness.
+  let hair = pick(HAIR);
+  if (Math.abs(luma(hair) - luma(skin)) < 0.16) hair = Math.abs(luma(0x17120f) - luma(skin)) >= 0.16 ? 0x17120f : 0x8c8c8c;
   const headwear = weighted<Headwear>(
     feminineCut
       ? [['cap', 5], ['bun', 2.5], ['long', 2.5], ['short', 1]]
@@ -84,7 +93,7 @@ export function makeLook(id: number): Look {
     shoulders: 1 + bell() * 0.07 + (feminineCut ? -0.03 : 0.03),
     headWidth: 1 + bell() * 0.05,
     headHeight: 1 + bell() * 0.06,
-    skin: pick(SKIN),
+    skin,
     hair,
     headwear,
     capColor: pick(CAPS),

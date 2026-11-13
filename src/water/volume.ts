@@ -74,7 +74,7 @@ export class WaterVolume {
 
         // Optical coefficients per metre (linear RGB).
         const vec3 WATER_ABS = vec3(0.30, 0.05, 0.02);
-        const vec3 WATER_SCA = vec3(0.004, 0.013, 0.017);
+        const vec3 WATER_SCA = vec3(0.012, 0.046, 0.06);
         // Per (L/m^3) per metre. Tracer gain is deliberately very high: see the UI footnote.
         const vec3 DYE_ABS = vec3(0.10, 0.50, 5.2);
         const vec3 DYE_SCA = vec3(2.0, 1.42, 0.05);
@@ -149,7 +149,14 @@ export class WaterVolume {
           float sunScale = 1.0 / max(uSunDir.y, 0.2);
           // Light reaching submerged surfaces has already been filtered on the way down.
           if (bgPos.y < uBoxMax.y && all(greaterThan(bgPos, uBoxMin - 0.05)) && all(lessThan(bgPos.xz, uBoxMax.xz + 0.05))) {
-            bg *= exp(-WATER_ABS * (uBoxMax.y - bgPos.y) * sunScale);
+            float below = uBoxMax.y - bgPos.y;
+            bg *= exp(-WATER_ABS * below * sunScale);
+            // Anything under water takes on a cooler cast straight away, so a body changes
+            // colour where it enters the water...
+            bg *= mix(vec3(1.0), vec3(0.6, 0.85, 0.96), smoothstep(0.0, 0.06, below));
+            // ...and a thin bright line marks exactly where it meets the surface.
+            float meniscus = 1.0 - smoothstep(0.004, 0.045, below);
+            bg = mix(bg, vec3(1.25), meniscus * 0.75);
           }
 
           // Looking up at the underside of the surface: mostly a mirror outside Snell's window.

@@ -7,7 +7,8 @@ const STEP_HZ = 60;
 
 /**
  * GPU heightfield ripple simulation covering the tank surface.
- * Texture channels: r = height (m), g = vertical velocity.
+ * Texture channels: r = height (m), g = vertical velocity, b = foam (fades in a fraction
+ * of a second, so it only shows where something keeps breaking the surface).
  *
  * Disturbances are drawn as additive point sprites, so the cost does not grow with the
  * number of swimmers beyond one small draw call.
@@ -23,7 +24,7 @@ export class Ripples {
   private dropGeometry = new THREE.BufferGeometry();
   private dropMaterial: THREE.ShaderMaterial;
   private dropData = new Float32Array(MAX_DROPS * 3);
-  private dropStrength = new Float32Array(MAX_DROPS);
+  private dropStrength = new Float32Array(MAX_DROPS * 2);
   private dropCount = 0;
   private acc = 0;
   private size = new THREE.Vector2(1, 1);
@@ -72,7 +73,8 @@ export class Ripples {
           v *= uDamp;
           h += v;
           h *= 0.999;
-          gl_FragColor = vec4(clamp(h, -0.25, 0.25), clamp(v, -0.25, 0.25), 0.0, 1.0);
+          float foam = min(s.b * 0.86, 1.6);
+          gl_FragColor = vec4(clamp(h, -0.25, 0.25), clamp(v, -0.25, 0.25), foam, 1.0);
         }
       `,
     });
@@ -80,7 +82,7 @@ export class Ripples {
 
     const pos = new THREE.BufferAttribute(this.dropData, 3);
     pos.setUsage(THREE.DynamicDrawUsage);
-    const str = new THREE.BufferAttribute(this.dropStrength, 1);
+    const str = new THREE.BufferAttribute(this.dropStrength, 2);
     str.setUsage(THREE.DynamicDrawUsage);
     this.dropGeometry.setAttribute('position', pos);
     this.dropGeometry.setAttribute('strength', str);
@@ -100,10 +102,11 @@ export class Ripples {
       },
       vertexShader: /* glsl */ `
         // position = (x, z, radius) in tank metres, origin at the tank corner.
-        attribute float strength;
+        // strength = (height change in metres, foam added)
+        attribute vec2 strength;
         uniform vec2 uSize;
         uniform float uTexelWorld;
-        varying float vStrength;
+        varying vec2 vStrength;
         void main() {
           vStrength = strength;
           gl_Position = vec4(position.xy / uSize * 2.0 - 1.0, 0.0, 1.0);
@@ -112,11 +115,12 @@ export class Ripples {
       `,
       fragmentShader: /* glsl */ `
         precision highp float;
-        varying float vStrength;
+        varying vec2 vStrength;
         void main() {
           float r = length(gl_PointCoord - 0.5) * 2.0;
           if (r >= 1.0) discard;
-          gl_FragColor = vec4(vStrength * (0.5 + 0.5 * cos(3.14159265 * r)), 0.0, 0.0, 0.0);
+          float f = 0.5 + 0.5 * cos(3.14159265 * r);
+          gl_FragColor = vec4(vStrength.x * f, 0.0, vStrength.y * f, 0.0);
         }
       `,
     });
@@ -171,14 +175,18 @@ export class Ripples {
     this.current = 0;
   }
 
-  /** Queue a disturbance at world (x, z). Strength is height in metres (signed). */
-  addDrop(x: number, z: number, radius: number, strength: number) {
+  /**
+   * Queue a disturbance at world (x, z). Strength is height in metres (signed); foam is
+   * how much white water to add there this frame.
+   */
+  addDrop(x: number, z: number, radius: number, strength: number, foam = 0) {
     if (this.dropCount >= MAX_DROPS) return;
     const i = this.dropCount++;
     this.dropData[i * 3] = x + this.size.x * 0.5;
     this.dropData[i * 3 + 1] = z + this.size.y * 0.5;
     this.dropData[i * 3 + 2] = Math.max(radius, this.texelWorld * 2.2);
-    this.dropStrength[i] = strength;
+    this.dropStrength[i * 2] = strength;
+    this.dropStrength[i * 2 + 1] = foam;
   }
 
   update(dt: number) {
