@@ -57,7 +57,8 @@ export class WaterSurface {
         }
 
         void main() {
-          vec2 g = surfaceGradient(vWorld.xz);
+          vec2 gr = rippleGradient(vWorld.xz);
+          vec2 g = gr + detailWaves(vWorld.xz, uTime).yz;
           vec3 n = normalize(vec3(-g.x, 1.0, -g.y));
           vec3 v = normalize(cameraPosition - vWorld);
           float ndv = max(dot(n, v), 0.0);
@@ -68,6 +69,10 @@ export class WaterSurface {
           float spec = pow(max(dot(r, uSunDir), 0.0), 900.0) * 14.0;
           col += vec3(1.0, 0.97, 0.92) * spec;
           float alpha = clamp(fresnel + spec * 0.4, 0.0, 1.0);
+          // Steep, freshly disturbed water catches the light: a soft white sheen on ripples.
+          float churn = smoothstep(0.035, 0.24, length(gr));
+          col = mix(col, vec3(1.25), churn * 0.6);
+          alpha = max(alpha, churn * 0.5);
           gl_FragColor = vec4(col, alpha);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

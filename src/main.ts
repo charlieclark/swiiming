@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { Sound } from './audio';
-import { DEFAULT_SUBJECTS, DEFAULT_TANK, detectQuality, type TankDims } from './config';
+import { DEFAULT_SWIMMERS, DEFAULT_TANK, detectQuality, type TankDims } from './config';
 import { Stage } from './scene/stage';
 import { Tank } from './scene/tank';
 import { FluidClient } from './sim/client';
 import { SwimmerManager } from './swimmers/manager';
 import type { Swimmer } from './swimmers/swimmer';
-import { formatConcentration, UI } from './ui/ui';
+import { UI } from './ui/ui';
 import { Ripples } from './water/ripples';
 import { WaterSurface } from './water/surface';
 import { WaterVolume } from './water/volume';
@@ -23,63 +23,43 @@ const volume = new WaterVolume(ripples, quality.marchSteps, stage.sunDir);
 const fluid = new FluidClient(quality.simCells);
 
 let dims: TankDims = { ...DEFAULT_TANK };
-let elapsed = 0;
-let eventCount = 0;
-let eventTotal = 0; // litres expected from the release in progress
-let eventStartReleased = 0;
-let wasVoiding = false;
-
-const subjectName = (s: Swimmer) => `S-${String(s.id).padStart(2, '0')}`;
+/** True while the main button is holding everyone's release open. */
+let releasing = false;
 
 const swimmers = new SwimmerManager(ripples, {
-  onVoidComplete: (s, litres) => ui.log(elapsed, `${subjectName(s)} voiding complete. ${litres.toFixed(2)} L.`),
-  onExposed: (s) => {
-    const c = formatConcentration(s.exposure * 1000);
-    ui.log(elapsed, `${subjectName(s)} exposure threshold exceeded (${c.value} ${c.unit} local).`, true);
-    sound.alert();
-  },
-  onResigned: (s) => ui.log(elapsed, `${subjectName(s)} no longer reacting. Classified: resigned.`),
   onSplash: (strength) => sound.splash(strength),
 });
 
 const ui = new UI(
   {
     onDims: (next) => {
-      const hadAnalyte = swimmers.totalReleased > 0;
       dims = next;
       configure(false);
-      if (hadAnalyte && !reconfigLogged) {
-        ui.log(elapsed, 'Tank reconfigured. Water replaced.');
-        reconfigLogged = true;
-      }
     },
-    onCount: (delta) => {
+    onCount: (n) => {
       sound.unlock();
-      if (delta > 0) {
-        const s = swimmers.add();
-        if (s) ui.log(elapsed, `${subjectName(s)} entered the tank.`);
-      } else {
-        const s = swimmers.remove();
-        if (s) ui.log(elapsed, `${subjectName(s)} withdrawn from the study.`);
-      }
+      const before = swimmers.count;
+      swimmers.setCount(n, releasing);
+      if (swimmers.count !== before) sound.tick();
+      ui.setCount(swimmers.count, swimmers.capacity);
+    },
+    onRelease: () => {
+      sound.unlock();
+      if (swimmers.count === 0) return;
+      releasing = !releasing;
+      swimmers.setAllPeeing(releasing);
+      sound.press();
+    },
+    onSpread: () => {
+      sound.unlock();
+      swimmers.spreadEvenly();
       sound.tick();
-      ui.setCount(swimmers.count);
-    },
-    onPee: () => {
-      sound.unlock();
-      if (swimmers.count === 0 || swimmers.anyVoiding) return;
-      swimmers.voidAll();
-      eventCount++;
-      eventStartReleased = swimmers.totalReleased;
-      eventTotal = swimmers.swimmers.reduce((sum, s) => sum + s.remaining, 0);
-      reconfigLogged = false;
-      ui.log(elapsed, `Release event ${eventCount} initiated. n = ${swimmers.count}.`);
-      sound.initiate();
     },
     onDrain: () => {
       sound.unlock();
+      releasing = false;
+      swimmers.setAllPeeing(false);
       resetWater();
-      ui.log(elapsed, 'Tank drained and refilled. Counters reset.');
       sound.drain();
     },
     onSound: (on) => {
@@ -90,12 +70,21 @@ const ui = new UI(
       layout();
       stage.configure(dims, false);
     },
+    onCardPee: () => {
+      sound.unlock();
+      const s = swimmers.selected;
+      if (!s) return;
+      s.peeing = !s.peeing;
+      sound.tick();
+    },
+    onCardClose: () => {
+      swimmers.selected = null;
+    },
   },
   dims,
 );
-let reconfigLogged = false;
 
-stage.scene.add(tank.opaque, swimmers.group);
+stage.scene.add(tank.opaque, swimmers.batch.group);
 stage.transparent.add(volume.mesh, surface.mesh, tank.glass, swimmers.ring);
 
 fluid.source = () => ({
@@ -105,17 +94,13 @@ fluid.source = () => ({
 });
 fluid.onFrame = (frame) => {
   volume.setDensity(frame.density, frame.nx, frame.ny, frame.nz);
-  swimmers.applyExposure(frame.exposure);
+  swimmers.applySolverResults(frame.exposure, frame.escape);
 };
 
 function resetWater() {
   swimmers.resetWater();
   volume.clear();
   fluid.configure(dims.width, dims.depth, dims.length);
-  elapsed = 0;
-  eventCount = 0;
-  eventTotal = 0;
-  wasVoiding = false;
 }
 
 function configure(snap: boolean) {
@@ -124,12 +109,9 @@ function configure(snap: boolean) {
   surface.configure(dims);
   volume.configure(dims);
   swimmers.configure(dims);
-  swimmers.resetWater();
-  wasVoiding = false;
   fluid.configure(dims.width, dims.depth, dims.length);
   stage.configure(dims, snap);
-  eventCount = 0;
-  eventTotal = 0;
+  ui.setCount(swimmers.count, swimmers.capacity);
 }
 
 function layout() {
@@ -140,16 +122,15 @@ function layout() {
 
 layout();
 configure(true);
-for (let i = 0; i < DEFAULT_SUBJECTS; i++) swimmers.add(true);
-ui.setCount(swimmers.count);
-ui.log(0, `Tank filled. ${Math.round(dims.width * dims.length * dims.depth * 1000).toLocaleString('en-US')} L.`);
+for (let i = 0; i < DEFAULT_SWIMMERS; i++) swimmers.add(true);
+ui.setCount(swimmers.count, swimmers.capacity);
 
 window.addEventListener('resize', () => {
   layout();
   stage.configure(dims, false);
 });
 
-// --- Pointer: drag subjects, otherwise orbit --------------------------------
+// --- Pointer: click a swimmer to select, drag to move, otherwise orbit -------
 
 const ndc = new THREE.Vector2();
 function toNdc(ev: PointerEvent) {
@@ -158,7 +139,13 @@ function toNdc(ev: PointerEvent) {
   return ndc;
 }
 
+const DRAG_THRESHOLD = 6; // px
 let activePointer = -1;
+let pressed: Swimmer | null = null;
+let pressX = 0;
+let pressY = 0;
+let moved = false;
+let emptyPress: { x: number; y: number; id: number } | null = null;
 
 canvas.addEventListener(
   'pointerdown',
@@ -166,40 +153,62 @@ canvas.addEventListener(
     sound.unlock();
     if (ev.button !== 0 || activePointer !== -1) return;
     const hit = swimmers.pick(toNdc(ev), stage.camera, ev.pointerType !== 'mouse');
-    if (!hit) return;
+    if (!hit) {
+      emptyPress = { x: ev.clientX, y: ev.clientY, id: ev.pointerId };
+      return;
+    }
     // Take the gesture away from the orbit controls.
     ev.stopImmediatePropagation();
     ev.preventDefault();
     activePointer = ev.pointerId;
     canvas.setPointerCapture(ev.pointerId);
     stage.controls.enabled = false;
-    swimmers.beginDrag(hit, ndc, stage.camera);
-    canvas.style.cursor = 'grabbing';
+    pressed = hit;
+    pressX = ev.clientX;
+    pressY = ev.clientY;
+    moved = false;
   },
   { capture: true },
 );
 
 canvas.addEventListener('pointermove', (ev) => {
-  if (ev.pointerId === activePointer) {
-    swimmers.drag(toNdc(ev), stage.camera);
+  if (ev.pointerId === activePointer && pressed) {
+    if (!moved && Math.hypot(ev.clientX - pressX, ev.clientY - pressY) > DRAG_THRESHOLD) {
+      moved = true;
+      swimmers.beginDrag(pressed, toNdc(ev), stage.camera);
+      canvas.style.cursor = 'grabbing';
+    }
+    if (moved) swimmers.drag(toNdc(ev), stage.camera);
     return;
   }
   if (ev.pointerType === 'mouse' && activePointer === -1) {
     swimmers.hovered = ev.buttons === 0 ? swimmers.pick(toNdc(ev), stage.camera, false) : null;
-    canvas.style.cursor = swimmers.hovered ? 'grab' : '';
+    canvas.style.cursor = swimmers.hovered ? 'pointer' : '';
   }
 });
 
-function endDrag(ev: PointerEvent) {
+function endPress(ev: PointerEvent, cancelled: boolean) {
+  if (emptyPress && ev.pointerId === emptyPress.id) {
+    // A click on empty water (not an orbit drag) closes the card.
+    if (!cancelled && Math.hypot(ev.clientX - emptyPress.x, ev.clientY - emptyPress.y) < DRAG_THRESHOLD) {
+      swimmers.selected = null;
+    }
+    emptyPress = null;
+  }
   if (ev.pointerId !== activePointer) return;
   activePointer = -1;
   if (canvas.hasPointerCapture(ev.pointerId)) canvas.releasePointerCapture(ev.pointerId);
-  swimmers.endDrag();
+  if (moved) swimmers.endDrag();
+  else if (pressed && !cancelled) {
+    swimmers.selected = swimmers.selected === pressed ? null : pressed;
+    sound.tick();
+  }
+  pressed = null;
   stage.controls.enabled = true;
   canvas.style.cursor = '';
 }
-canvas.addEventListener('pointerup', endDrag);
-canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('pointerup', (ev) => endPress(ev, false));
+canvas.addEventListener('pointercancel', (ev) => endPress(ev, true));
 canvas.addEventListener('pointerleave', () => {
   if (activePointer === -1) swimmers.hovered = null;
 });
@@ -209,45 +218,47 @@ window.addEventListener('keydown', (ev) => {
     ev.preventDefault();
     (document.getElementById('pee') as HTMLButtonElement).click();
   }
+  if (ev.code === 'Escape') swimmers.selected = null;
 });
 
 // --- Main loop -------------------------------------------------------------
 
 let last = performance.now();
 let time = 0;
+let cardShown = false;
 
 function frame(now: number) {
   const dt = Math.min(0.1, Math.max(0.001, (now - last) / 1000));
   last = now;
   time += dt;
-  elapsed += dt;
 
   swimmers.update(dt, time);
   ripples.update(dt);
   fluid.update(dt);
 
-  const voiding = swimmers.anyVoiding;
-  if (wasVoiding && !voiding && eventCount > 0) {
-    const litres = swimmers.totalReleased - eventStartReleased;
-    ui.log(elapsed, `Release event ${eventCount} complete. ${litres.toFixed(2)} L total.`);
-    sound.confirm();
-  }
-  wasVoiding = voiding;
-  const voidingCount = voiding ? swimmers.swimmers.filter((s) => s.voiding).length : 0;
-  sound.update(dt, voidingCount);
+  const peeing = swimmers.peeingCount;
+  if (releasing && swimmers.count === 0) releasing = false;
+  sound.update(dt, peeing, swimmers.commotion);
 
-  const litresInTank = dims.width * dims.length * dims.depth * 1000;
-  const ppm = (swimmers.totalReleased / litresInTank) * 1e6;
-  ui.setReadout(ppm, swimmers.totalReleased, eventCount, elapsed);
-  const progress = eventTotal > 0 ? (swimmers.totalReleased - eventStartReleased) / eventTotal : 0;
-  ui.setPeeState(swimmers.count, voiding, Math.min(1, progress));
+  // Well-mixed concentration in a pool that overflows as liquid is added.
+  const tankLitres = dims.width * dims.length * dims.depth * 1000;
+  const ppm = (1 - Math.exp(-swimmers.totalReleased / tankLitres)) * 1e6;
+  ui.setReadout(ppm, swimmers.totalReleased, peeing, swimmers.count);
+  ui.setRelease(releasing, swimmers.count);
+  ui.setCard(swimmers.selected);
+  if ((swimmers.selected !== null) !== cardShown) {
+    cardShown = swimmers.selected !== null;
+    if (ui.isSheet) layout();
+  }
 
   stage.update();
   tank.update(time);
   surface.update(time);
   volume.update(stage.camera, stage.sceneColor, stage.sceneDepth, stage.resolution, time);
   stage.render();
-  ui.updateLabels(swimmers.swimmers, stage, tank, dims);
+  const portrait = swimmers.selected ? ui.portraitRect() : null;
+  if (portrait && swimmers.selected) stage.renderPortrait(portrait, swimmers.selected.headMatrix);
+  ui.updateLabels(stage, tank, dims);
 
   requestAnimationFrame(frame);
 }

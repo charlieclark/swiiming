@@ -10,8 +10,8 @@
  */
 
 /** Per-subject input, packed as SUBJECT_STRIDE floats. */
-export const SUBJECT_STRIDE = 8;
-// [x, z, facing, phase, vigor, vx, vz, litresToInject]
+export const SUBJECT_STRIDE = 12;
+// [x, z, facing, phase, vigor, vx, vz, litresToInject, releaseX, releaseY, releaseZ, unused]
 
 /** Maximum encodable dye density (L/m^3). Encoding is sqrt for precision at low values. */
 export const DYE_ENCODE_MAX = 16;
@@ -222,6 +222,7 @@ export class FluidSim {
       const sp = Math.sin(phase);
       const cp = Math.cos(phase);
 
+      if (vigor > 0.01) {
       // Eggbeater kick: net downward thrust plus alternating swirl from each leg.
       const legY = Math.max(minY, -1.15);
       for (let side = -1; side <= 1; side += 2) {
@@ -248,16 +249,17 @@ export class FluidSim {
         const fwd = 0.4 * vigor * sp;
         this.blob(ax, -0.25, az, 0.26, rxd * push + fxd * fwd, -0.25 * vigor, rzd * push + fzd * fwd, dt);
       }
-      // Body drag when the subject is being repositioned.
+      }
+      // Body drag when the swimmer moves or is being repositioned.
       const speed = Math.hypot(vx, vz);
       if (speed > 0.02) {
         this.blob(x, Math.max(minY, -0.55), z, 0.42, vx * 0.85, 0, vz * 0.85, dt, 9);
       }
       // Analyte release at the pelvis, with a slight forward-down drift.
       if (litres > 0) {
-        const py = Math.max(minY, -0.74);
-        const px = x + fxd * 0.1;
-        const pz = z + fzd * 0.1;
+        const py = Math.min(-this.hy * 0.5, Math.max(minY, subjects[o + 9]));
+        const px = subjects[o + 8];
+        const pz = subjects[o + 10];
         this.deposit(px, py, pz, 0.1, litres);
         this.blob(px, py, pz, 0.16, fxd * 0.22, -0.2, fzd * 0.22, dt, 6);
       }

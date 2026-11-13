@@ -5,7 +5,6 @@
   --card: rgba(250, 252, 253, 0.86);
   --accent: #f2c41c;
   --accent-deep: #d9a900;
-  --warn: #b3362b;
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;
   --panel-w: 304px;
@@ -15,12 +14,16 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #e7ecef;
+  background: #dfe5e9;
   color: var(--ink);
   font-family: var(--sans);
   font-size: 13px;
@@ -45,7 +48,6 @@ body {
   overflow: hidden;
 }
 
-.tag,
 .dim {
   position: absolute;
   left: 0;
@@ -53,62 +55,10 @@ body {
   will-change: transform;
   font-family: var(--mono);
   white-space: nowrap;
-}
-
-.tag {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 6px 2px 5px;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  background: rgba(250, 252, 253, 0.84);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  box-shadow: 0 1px 2px rgba(23, 35, 44, 0.08);
-  transition: opacity 0.2s, border-color 0.3s;
-}
-
-.tag::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 100%;
-  width: 1px;
-  height: 9px;
-  background: rgba(23, 35, 44, 0.35);
-}
-
-.tag b {
-  font-weight: 600;
-}
-
-.tag span {
-  color: var(--muted);
-}
-
-.tag[data-state='voiding'] {
-  border-color: var(--accent-deep);
-}
-.tag[data-state='voiding'] span {
-  color: #8a6a00;
-}
-.tag[data-state='exposed'] {
-  border-color: var(--warn);
-}
-.tag[data-state='exposed'] span {
-  color: var(--warn);
-}
-.tag[data-state='resigned'] span {
-  color: #47525b;
-  font-style: italic;
-}
-
-.dim {
   font-size: 11px;
   color: #3d4c57;
   padding: 1px 5px;
-  background: rgba(231, 236, 239, 0.8);
+  background: rgba(223, 229, 233, 0.8);
   border-radius: 2px;
 }
 
@@ -132,25 +82,12 @@ body {
 }
 
 .masthead {
-  padding: 16px 18px 13px;
+  padding: 16px 18px 14px;
   border-bottom: 1px solid var(--line);
 }
 
-.study {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.study span {
-  margin-left: 8px;
-  opacity: 0.7;
-}
-
 h1 {
-  margin: 5px 0 0;
+  margin: 0;
   font-size: 17px;
   line-height: 1.2;
   font-weight: 650;
@@ -175,10 +112,9 @@ section {
 
 h2 {
   margin: 0 0 9px;
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -191,9 +127,14 @@ h2 {
   height: 30px;
 }
 
+.row.count {
+  grid-template-columns: 30px 1fr 30px 34px;
+  gap: 8px;
+  height: 36px;
+}
+
 .row output,
-.kv b,
-.stepper output {
+.kv b {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-weight: 500;
@@ -201,6 +142,10 @@ h2 {
 
 .row output {
   text-align: right;
+}
+
+.row.count output {
+  font-size: 16px;
 }
 
 input[type='range'] {
@@ -249,25 +194,17 @@ input[type='range']:focus-visible {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  gap: 12px;
   padding: 4px 0;
   color: var(--muted);
 }
 .kv b {
   color: var(--ink);
+  white-space: nowrap;
 }
 
-.stepper {
-  display: grid;
-  grid-template-columns: 34px 40px 34px 1fr;
-  align-items: center;
-  gap: 4px;
-}
-.stepper output {
-  text-align: center;
-  font-size: 17px;
-}
-.stepper p {
-  margin: 0 0 0 10px;
+.hint {
+  margin: 9px 0 0;
   color: var(--muted);
   font-size: 11.5px;
   line-height: 1.35;
@@ -280,27 +217,32 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
-.stepper button,
-.actions button {
+.row.count button,
+.actions button,
+#card button {
   height: 34px;
   border: 1px solid rgba(23, 35, 44, 0.28);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.7);
   transition: background 0.15s, transform 0.08s;
 }
-.stepper button {
-  font-size: 18px;
+.row.count button {
+  height: 30px;
+  padding: 0;
+  font-size: 17px;
   line-height: 1;
 }
-.stepper button:hover,
-.actions button:hover {
+.row.count button:hover,
+.actions button:hover,
+#card button:hover {
   background: #fff;
 }
-.stepper button:active,
-.actions button:active {
+.row.count button:active,
+.actions button:active,
+#card button:active {
   transform: translateY(1px);
 }
-.stepper button:disabled {
+button:disabled {
   opacity: 0.35;
   cursor: default;
 }
@@ -360,14 +302,13 @@ button {
   left: 50%;
   transform: translateX(-50%);
   padding-bottom: 2px;
-  font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10px;
   white-space: nowrap;
   color: var(--muted);
 }
 
 .assessment {
-  min-height: 32px;
+  min-height: 20px;
   margin-bottom: 4px;
   font-size: 13px;
   font-weight: 550;
@@ -378,6 +319,10 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+.actions.single {
+  grid-template-columns: 1fr;
+  margin-top: 6px;
 }
 
 footer {
@@ -390,28 +335,93 @@ footer p {
   margin: 0 0 6px;
 }
 
+/* ---- Swimmer card ---------------------------------------------------- */
+
+#card {
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  width: 232px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(23, 35, 44, 0.14);
+}
+#card header,
+#card .card-body {
+  background: var(--card);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+#card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 8px 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+#card header b {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+}
+#card header span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+#card-close {
+  flex: none;
+  width: 30px;
+  height: 30px !important;
+  border: 0 !important;
+  background: transparent !important;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--muted);
+}
+/* The 3D view shows through here: the renderer draws the swimmer's face into this box. */
+#portrait {
+  height: 200px;
+  border-bottom: 1px solid var(--line);
+  pointer-events: none;
+}
+#card .card-body {
+  padding: 9px 14px 14px;
+}
+#card-pee {
+  width: 100%;
+  margin-top: 9px;
+  height: 38px !important;
+  font-weight: 650;
+  background: var(--accent) !important;
+  border-color: var(--accent-deep) !important;
+}
+#card-pee.on {
+  background: rgba(255, 255, 255, 0.7) !important;
+  border-color: rgba(23, 35, 44, 0.28) !important;
+}
+
 /* ---- The button ----------------------------------------------------- */
 
 #action {
   position: fixed;
   left: calc(50% + (var(--panel-w) + 16px) / 2);
-  bottom: max(28px, env(safe-area-inset-bottom));
+  bottom: max(30px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 9px;
   pointer-events: none;
 }
 
 #pee {
   pointer-events: auto;
   position: relative;
-  width: 196px;
-  height: 72px;
+  min-width: 290px;
+  height: 68px;
+  padding: 0 34px;
   border: 0;
-  border-radius: 36px;
-  overflow: hidden;
+  border-radius: 34px;
   background: var(--accent);
   color: var(--ink);
   box-shadow:
@@ -421,108 +431,34 @@ footer p {
   transition: transform 0.08s, box-shadow 0.08s, background 0.2s;
 }
 #pee .text {
-  position: relative;
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  margin-right: -0.16em;
-}
-#pee .fill {
-  position: absolute;
-  inset: 0;
-  transform-origin: left;
-  transform: scaleX(0);
-  background: rgba(23, 35, 44, 0.16);
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 #pee:hover:not(:disabled) {
   background: #f7cd2e;
 }
-#pee:active:not(:disabled) {
+#pee:active:not(:disabled),
+#pee.on {
   transform: translateY(5px);
   box-shadow:
     0 1px 0 var(--accent-deep),
     0 4px 10px rgba(120, 90, 0, 0.3),
     inset 0 2px 0 rgba(255, 255, 255, 0.45);
 }
+#pee.on {
+  background: #e3b40e;
+}
 #pee:disabled {
-  cursor: default;
-}
-#pee.busy {
-  transform: translateY(5px);
-  box-shadow:
-    0 1px 0 var(--accent-deep),
-    0 4px 10px rgba(120, 90, 0, 0.25),
-    inset 0 2px 0 rgba(255, 255, 255, 0.45);
-}
-#pee.busy .text {
-  font-size: 19px;
-  letter-spacing: 0.2em;
-}
-#pee.empty {
   background: #cfd5d9;
   box-shadow: 0 6px 0 #b2bac0;
   color: #77838c;
+  opacity: 1;
 }
 #pee:focus-visible {
   outline: 3px solid var(--ink);
   outline-offset: 4px;
-}
-
-#pee-sub {
-  padding: 3px 9px;
-  border-radius: 4px;
-  background: rgba(250, 252, 253, 0.78);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-/* ---- Event log ------------------------------------------------------ */
-
-#log {
-  position: fixed;
-  right: 18px;
-  top: 18px;
-  width: 330px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  pointer-events: none;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  line-height: 1.4;
-  color: #36434d;
-}
-#log li {
-  padding: 2px 7px;
-  background: rgba(250, 252, 253, 0.72);
-  border-left: 2px solid rgba(23, 35, 44, 0.3);
-  animation: log-in 0.25s ease-out;
-}
-#log li:nth-last-child(n + 5) {
-  opacity: 0.45;
-}
-#log li:nth-last-child(n + 7) {
-  display: none;
-}
-#log li time {
-  color: var(--muted);
-  margin-right: 8px;
-}
-#log li.warn {
-  border-left-color: var(--warn);
-}
-
-@keyframes log-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
 }
 
 /* ---- Small screens: bottom sheet ------------------------------------ */
@@ -547,19 +483,13 @@ footer p {
     position: fixed;
     left: 12px;
     top: max(10px, env(safe-area-inset-top));
-    padding: 7px 10px 8px;
+    padding: 7px 10px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--card);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     pointer-events: none;
-  }
-  #chip .study {
-    font-size: 9px;
-  }
-  .chip-title {
-    margin-top: 2px;
     font-size: 13px;
     font-weight: 650;
     letter-spacing: -0.01em;
@@ -612,10 +542,13 @@ footer p {
   .row {
     height: 40px;
   }
-  .stepper {
-    grid-template-columns: 44px 44px 44px 1fr;
+  .row.count {
+    grid-template-columns: 40px 1fr 40px 34px;
+    height: 46px;
   }
-  .stepper button,
+  .row.count button {
+    height: 40px;
+  }
   .actions button {
     height: 42px;
   }
@@ -624,34 +557,39 @@ footer p {
     bottom: calc(64px + env(safe-area-inset-bottom));
     transition: opacity 0.2s;
   }
-  body.sheet-open #action,
-  body.sheet-open #log {
+  body.sheet-open #action {
     opacity: 0;
-    pointer-events: none;
   }
   body.sheet-open #pee {
     pointer-events: none;
   }
   #pee {
-    width: 172px;
-    height: 64px;
+    min-width: 250px;
+    height: 60px;
+    padding: 0 26px;
   }
-  #log {
+  #pee .text {
+    font-size: 18px;
+  }
+  #card {
     left: 12px;
     right: 12px;
-    top: calc(max(10px, env(safe-area-inset-top)) + 58px);
-    bottom: auto;
+    top: calc(max(10px, env(safe-area-inset-top)) + 44px);
     width: auto;
-    font-size: 10px;
-    transition: opacity 0.2s;
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    grid-template-rows: auto 1fr;
   }
-  #log li:nth-last-child(n + 2) {
-    opacity: 0.45;
+  #card header {
+    grid-column: 1 / -1;
   }
-  #log li:nth-last-child(n + 3) {
+  #portrait {
+    height: auto;
+    min-height: 150px;
+    border-bottom: 0;
+    border-right: 1px solid var(--line);
+  }
+  body.sheet-open #card {
     display: none;
-  }
-  .tag {
-    font-size: 9px;
   }
 }

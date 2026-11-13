@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { LIMITS, REFERENCE_PPM, type TankDims } from '../config';
 import type { Stage } from '../scene/stage';
 import type { Tank } from '../scene/tank';
@@ -7,10 +6,13 @@ import type { Swimmer } from '../swimmers/swimmer';
 export interface UICallbacks {
   onDims(dims: TankDims): void;
   onCount(n: number): void;
-  onPee(): void;
+  onRelease(): void;
+  onSpread(): void;
   onDrain(): void;
   onSound(on: boolean): void;
   onLayout(): void;
+  onCardPee(): void;
+  onCardClose(): void;
 }
 
 const METER_MIN = 0.1; // ppm
@@ -25,45 +27,66 @@ export function formatConcentration(ppm: number): { value: string; unit: string 
   return { value: ppm.toFixed(2), unit: 'ppm' };
 }
 
+/** A literal comparison with the public pool estimate. */
 export function assess(ppm: number): string {
-  if (ppm <= 0) return 'Baseline. No analyte detected.';
-  if (ppm < 5) return 'Trace. Below the threshold of suspicion.';
-  if (ppm < 55) return 'Below a typical public pool.';
-  if (ppm < 150) return 'Comparable to a typical public pool.';
-  if (ppm < 1000) return 'Exceeds a typical public pool.';
-  if (ppm < 10000) return 'Swimming not advised.';
-  if (ppm < 250000) return 'No longer meaningfully a pool.';
-  return 'Reclassify tank as specimen container.';
+  if (ppm <= 0) return 'No urine in the pool.';
+  const ratio = ppm / REFERENCE_PPM;
+  if (ratio < 0.01) return 'Under 1% of a typical public pool.';
+  if (ratio < 0.95) return `${Math.round(ratio * 100)}% of a typical public pool.`;
+  if (ratio < 1.05) return 'About the same as a typical public pool.';
+  if (ratio < 10) return `${ratio.toFixed(1)} times a typical public pool.`;
+  return `${Math.round(ratio).toLocaleString('en-US')} times a typical public pool.`;
 }
 
-export function formatClock(seconds: number) {
-  const s = Math.max(0, Math.floor(seconds));
-  const m = Math.floor(s / 60);
-  return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+function formatLitres(litres: number) {
+  if (litres >= 100) return `${Math.round(litres).toLocaleString('en-US')} L`;
+  if (litres >= 10) return `${litres.toFixed(1)} L`;
+  return `${litres.toFixed(2)} L`;
 }
 
-interface Tag {
-  el: HTMLDivElement;
-  id: HTMLElement;
-  status: HTMLElement;
-  text: string;
+/** Sets text only when it changed, to avoid needless layout work every frame. */
+class Text {
+  private last = '';
+  constructor(private el: HTMLElement) {}
+  set(value: string) {
+    if (value === this.last) return;
+    this.last = value;
+    this.el.textContent = value;
+  }
 }
 
 export class UI {
   private dims: TankDims;
-  private tags = new Map<number, Tag>();
   private dimLabels: Record<'width' | 'length' | 'depth', HTMLDivElement>;
   private labels = $('labels');
   private panel = $('panel');
   private pee = $<HTMLButtonElement>('pee');
-  private peeText = this.pee.querySelector('.text') as HTMLElement;
-  private peeFill = this.pee.querySelector('.fill') as HTMLElement;
-  private peeSub = $('pee-sub');
-  private logEl = $('log');
+  private peeText = new Text(this.pee.querySelector('.text') as HTMLElement);
+  private countInput = $<HTMLInputElement>('count');
+  private card = $('card');
+  private portrait = $('portrait');
+  private cardPee = $<HTMLButtonElement>('card-pee');
   private soundOn = true;
-  private tmp = new THREE.Vector3();
   private screen = { x: 0, y: 0 };
-  private last = { ppm: '', released: '', events: '', elapsed: '', assess: '', pee: '' };
+  private text = {
+    ppm: new Text($('ppm')),
+    unit: new Text($('ppm-unit')),
+    summary: new Text($('summary-ppm')),
+    summaryText: new Text($('summary-text')),
+    assess: new Text($('assessment')),
+    released: new Text($('released')),
+    peeing: new Text($('peeing')),
+    count: new Text($('sub-count')),
+    cap: new Text($('cap')),
+    cardName: new Text($('card-name')),
+    cardStatus: new Text($('card-status')),
+    cardReleased: new Text($('card-released')),
+    cardFlow: new Text($('card-flow')),
+    cardLocal: new Text($('card-local')),
+    cardHeight: new Text($('card-height')),
+    cardPee: new Text(this.cardPee),
+  };
+  private lastMeter = -1;
 
   constructor(
     private cb: UICallbacks,
@@ -93,9 +116,11 @@ export class UI {
     bindDim('depth');
     this.showVolume();
 
-    $('sub-minus').addEventListener('click', () => this.cb.onCount(-1));
-    $('sub-plus').addEventListener('click', () => this.cb.onCount(1));
-    this.pee.addEventListener('click', () => this.cb.onPee());
+    this.countInput.addEventListener('input', () => this.cb.onCount(Number(this.countInput.value)));
+    $('sub-minus').addEventListener('click', () => this.cb.onCount(Number(this.countInput.value) - 1));
+    $('sub-plus').addEventListener('click', () => this.cb.onCount(Number(this.countInput.value) + 1));
+    $('spread').addEventListener('click', () => this.cb.onSpread());
+    this.pee.addEventListener('click', () => this.cb.onRelease());
     $('drain').addEventListener('click', () => this.cb.onDrain());
     const sound = $('sound');
     sound.addEventListener('click', () => {
@@ -104,12 +129,14 @@ export class UI {
       sound.setAttribute('aria-pressed', String(this.soundOn));
       this.cb.onSound(this.soundOn);
     });
+    this.cardPee.addEventListener('click', () => this.cb.onCardPee());
+    $('card-close').addEventListener('click', () => this.cb.onCardClose());
 
     const toggle = $('sheet-toggle');
     toggle.addEventListener('click', () => {
       const collapsed = this.panel.classList.toggle('collapsed');
       toggle.setAttribute('aria-expanded', String(!collapsed));
-      toggle.querySelector('.chev')!.textContent = collapsed ? 'Parameters' : 'Close';
+      toggle.querySelector('.chev')!.textContent = collapsed ? 'Settings' : 'Close';
       document.body.classList.toggle('sheet-open', !collapsed && this.isSheet);
       this.cb.onLayout();
     });
@@ -130,12 +157,14 @@ export class UI {
     return window.matchMedia('(max-width: 760px)').matches;
   }
 
-  /** How far the 3D view should shift so the tank sits in the uncovered area. */
+  /** How far the 3D view should shift so the pool sits in the uncovered area. */
   viewShift() {
     if (this.isSheet) {
-      // Keep the tank in the area above the sheet (and above the button when collapsed).
+      // Keep the pool in the area above the sheet (and above the button when collapsed).
       const open = !this.panel.classList.contains('collapsed');
-      return { x: 0, y: open ? -this.panel.offsetHeight / 2 : -70 };
+      if (open) return { x: 0, y: -this.panel.offsetHeight / 2 };
+      // With the swimmer card showing at the top, sit the pool lower so both are visible.
+      return { x: 0, y: this.card.hidden ? -70 : 26 };
     }
     return { x: (this.panel.offsetWidth + 16) / 2, y: -26 };
   }
@@ -150,112 +179,67 @@ export class UI {
     $('volume').textContent = `${Math.round(litres).toLocaleString('en-US')} L`;
   }
 
-  setCount(n: number) {
-    $('sub-count').textContent = String(n);
-    $<HTMLButtonElement>('sub-minus').disabled = n <= LIMITS.subjects.min;
-    $<HTMLButtonElement>('sub-plus').disabled = n >= LIMITS.subjects.max;
+  setCount(n: number, capacity: number) {
+    this.text.count.set(String(n));
+    this.text.cap.set(String(capacity));
+    if (this.countInput.max !== String(capacity)) this.countInput.max = String(capacity);
+    if (this.countInput.value !== String(n)) this.countInput.value = String(n);
+    $<HTMLButtonElement>('sub-minus').disabled = n <= LIMITS.swimmers.min;
+    $<HTMLButtonElement>('sub-plus').disabled = n >= capacity;
+    $<HTMLButtonElement>('spread').disabled = n < 2;
   }
 
-  setReadout(ppm: number, releasedLitres: number, events: number, elapsed: number) {
+  setReadout(ppm: number, releasedLitres: number, peeing: number, count: number) {
     const c = formatConcentration(ppm);
-    const key = c.value + c.unit;
-    if (key !== this.last.ppm) {
-      this.last.ppm = key;
-      $('ppm').textContent = c.value;
-      $('ppm-unit').textContent = c.unit;
-      $('summary-ppm').textContent = `${c.value} ${c.unit}`;
-      $('meter-fill').style.width = `${this.meterFraction(ppm) * 100}%`;
+    this.text.ppm.set(c.value);
+    this.text.unit.set(c.unit);
+    this.text.summary.set(`${c.value} ${c.unit}`);
+    const fraction = Math.round(this.meterFraction(ppm) * 1000) / 10;
+    if (fraction !== this.lastMeter) {
+      this.lastMeter = fraction;
+      $('meter-fill').style.width = `${fraction}%`;
     }
     const a = assess(ppm);
-    if (a !== this.last.assess) {
-      this.last.assess = a;
-      $('assessment').textContent = a;
-      $('summary-text').textContent = a;
-    }
-    const r = `${releasedLitres.toFixed(2)} L`;
-    if (r !== this.last.released) $('released').textContent = this.last.released = r;
-    const e = String(events);
-    if (e !== this.last.events) $('events').textContent = this.last.events = e;
-    const t = formatClock(elapsed);
-    if (t !== this.last.elapsed) $('elapsed').textContent = this.last.elapsed = t;
+    this.text.assess.set(a);
+    this.text.summaryText.set(a);
+    this.text.released.set(formatLitres(releasedLitres));
+    this.text.peeing.set(`${peeing} of ${count}`);
   }
 
-  /** progress: 0..1 while a release is under way, otherwise ignored. */
-  setPeeState(count: number, voiding: boolean, progress: number) {
-    const key = `${count}:${voiding}`;
-    if (voiding) this.peeFill.style.transform = `scaleX(${progress.toFixed(3)})`;
-    if (key === this.last.pee) return;
-    this.last.pee = key;
-    this.pee.classList.toggle('busy', voiding);
-    this.pee.classList.toggle('empty', count === 0);
-    this.pee.disabled = voiding || count === 0;
-    if (!voiding) this.peeFill.style.transform = 'scaleX(0)';
-    this.peeText.textContent = voiding ? 'VOIDING' : 'PEE';
-    this.peeSub.textContent =
-      count === 0
-        ? 'No subjects in tank'
-        : voiding
-          ? 'Release in progress'
-          : `Initiate simultaneous release (n = ${count})`;
+  setRelease(active: boolean, count: number) {
+    this.pee.classList.toggle('on', active);
+    this.pee.disabled = count === 0;
+    this.pee.setAttribute('aria-pressed', String(active));
+    this.peeText.set(active ? 'Stop release' : 'Simultaneous release');
   }
 
-  log(elapsed: number, text: string, warn = false) {
-    const li = document.createElement('li');
-    if (warn) li.className = 'warn';
-    const time = document.createElement('time');
-    time.textContent = `T+${formatClock(elapsed)}`;
-    li.append(time, text);
-    this.logEl.appendChild(li);
-    while (this.logEl.children.length > 8) this.logEl.firstElementChild!.remove();
+  /** Show, update or hide the card for the selected swimmer. */
+  setCard(s: Swimmer | null) {
+    if (!s) {
+      if (!this.card.hidden) this.card.hidden = true;
+      return;
+    }
+    if (this.card.hidden) this.card.hidden = false;
+    this.text.cardName.set(s.name);
+    this.text.cardStatus.set(s.status);
+    this.text.cardReleased.set(formatLitres(s.released));
+    this.text.cardFlow.set(`${Math.round(s.flowNow * 1000)} mL/s`);
+    const local = formatConcentration(s.exposure * 1000);
+    this.text.cardLocal.set(`${local.value} ${local.unit}`);
+    this.text.cardHeight.set(`${s.heightM.toFixed(2)} m`);
+    this.text.cardPee.set(s.peeing ? 'Stop peeing' : 'Pee');
+    this.cardPee.classList.toggle('on', s.peeing);
   }
 
-  /** Position the floating subject tags and dimension labels. */
-  updateLabels(swimmers: Swimmer[], stage: Stage, tank: Tank, dims: TankDims) {
-    const seen = new Set<number>();
-    for (const s of swimmers) {
-      seen.add(s.id);
-      let tag = this.tags.get(s.id);
-      if (!tag) {
-        const el = document.createElement('div');
-        el.className = 'tag';
-        const id = document.createElement('b');
-        id.textContent = `S-${String(s.id).padStart(2, '0')}`;
-        const status = document.createElement('span');
-        el.append(id, status);
-        this.labels.appendChild(el);
-        tag = { el, id, status, text: '' };
-        this.tags.set(s.id, tag);
-      }
-      let text: string;
-      switch (s.state) {
-        case 'voiding':
-          text = 'VOIDING';
-          break;
-        case 'exposed':
-          text = `EXPOSED ${Math.round(s.exposure * 1000)} ppm`;
-          break;
-        case 'resigned':
-          text = 'RESIGNED';
-          break;
-        default:
-          text = 'NOMINAL';
-      }
-      if (text !== tag.text) {
-        tag.text = text;
-        tag.status.textContent = text;
-        tag.el.dataset.state = s.state;
-      }
-      const visible = stage.project(s.labelAnchor(this.tmp), this.screen) && s.spawn > 0.6;
-      tag.el.style.opacity = visible ? '1' : '0';
-      tag.el.style.transform = `translate(${this.screen.x.toFixed(1)}px, ${this.screen.y.toFixed(1)}px) translate(-50%, -100%) translateY(-9px)`;
-    }
-    for (const [id, tag] of this.tags) {
-      if (!seen.has(id)) {
-        tag.el.remove();
-        this.tags.delete(id);
-      }
-    }
+  /** Where on screen the swimmer's face should be drawn, or null if the card is hidden. */
+  portraitRect() {
+    if (this.card.hidden) return null;
+    const rect = this.portrait.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 ? rect : null;
+  }
 
+  /** Position the dimension labels. */
+  updateLabels(stage: Stage, tank: Tank, dims: TankDims) {
     (['width', 'length', 'depth'] as const).forEach((key) => {
       const el = this.dimLabels[key];
       const visible = stage.project(tank.anchors[key], this.screen);

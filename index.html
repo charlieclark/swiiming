@@ -4,34 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#e7ecef" />
-    <meta name="description" content="A rigorous simulation of urine dispersion in a swimming pool." />
-    <title>Aquatic Micturition Dispersion Study</title>
+    <meta name="description" content="A 3D simulation of urine dispersing in a swimming pool." />
+    <title>Aquatic Micturition Dispersion</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f2c41c'/%3E%3Cpath d='M16 6c4 6 7 9.500 7 13.500a7 7 0 0 1-14 0C9 15.500 12 12 16 6z' fill='%2317232c'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="/src/ui/styles.css" />
   </head>
   <body>
-    <canvas id="scene" aria-label="3D view of the test tank"></canvas>
+    <canvas id="scene" aria-label="3D view of the pool"></canvas>
     <div id="labels" aria-hidden="true"></div>
 
-    <div id="chip" aria-hidden="true">
-      <div class="study">Study 26-114 <span>Rev. C</span></div>
-      <div class="chip-title">Aquatic Micturition Dispersion</div>
-    </div>
+    <div id="chip" aria-hidden="true">Aquatic Micturition Dispersion</div>
 
     <aside id="panel" class="collapsed">
       <header class="masthead">
-        <div class="study">Study 26-114 <span>Rev. C</span></div>
         <h1>Aquatic Micturition Dispersion</h1>
       </header>
 
       <button id="sheet-toggle" type="button" aria-expanded="false" aria-controls="panel-body">
-        <span class="summary"><b id="summary-ppm">0.00 ppm</b><span id="summary-text">Baseline</span></span>
-        <span class="chev">Parameters</span>
+        <span class="summary"><b id="summary-ppm">0.00 ppm</b><span id="summary-text"></span></span>
+        <span class="chev">Settings</span>
       </button>
 
       <div id="panel-body">
         <section>
-          <h2>Tank</h2>
+          <h2>Pool</h2>
           <label class="row">
             <span>Width</span>
             <input id="dim-width" type="range" />
@@ -51,27 +47,31 @@
         </section>
 
         <section>
-          <h2>Subjects</h2>
-          <div class="stepper">
-            <button id="sub-minus" type="button" aria-label="Remove a subject">&minus;</button>
+          <h2>Swimmers</h2>
+          <div class="row count">
+            <button id="sub-minus" type="button" aria-label="Remove a swimmer">&minus;</button>
+            <input id="count" type="range" min="0" step="1" aria-label="Number of swimmers" />
+            <button id="sub-plus" type="button" aria-label="Add a swimmer">+</button>
             <output id="sub-count">0</output>
-            <button id="sub-plus" type="button" aria-label="Add a subject">+</button>
-            <p>Treading water. Drag a subject to reposition.</p>
           </div>
+          <div class="kv"><span>Most that fit in this pool</span><b id="cap"></b></div>
+          <div class="actions single">
+            <button id="spread" type="button">Spread evenly</button>
+          </div>
+          <p class="hint">Click a swimmer for details. Drag to move them.</p>
         </section>
 
         <section>
-          <h2>Readout</h2>
+          <h2>Water</h2>
           <div class="big"><b id="ppm">0.00</b><span id="ppm-unit">ppm</span></div>
-          <div class="caption">Urine concentration, tank average (v/v)</div>
+          <div class="caption">Urine concentration, pool average (by volume)</div>
           <div class="meter" role="img" aria-label="Concentration on a logarithmic scale">
             <div class="fill" id="meter-fill"></div>
             <div class="ref" id="meter-ref"><span>public pool<sup>1</sup></span></div>
           </div>
-          <div class="assessment" id="assessment">Baseline. No analyte detected.</div>
+          <div class="assessment" id="assessment"></div>
           <div class="kv"><span>Released</span><b id="released">0.00 L</b></div>
-          <div class="kv"><span>Release events</span><b id="events">0</b></div>
-          <div class="kv"><span>Elapsed</span><b id="elapsed">00:00</b></div>
+          <div class="kv"><span>Peeing now</span><b id="peeing">0 of 0</b></div>
         </section>
 
         <section class="actions">
@@ -80,18 +80,33 @@
         </section>
 
         <footer>
-          <p><sup>1</sup> Approx. 90 ppm: an estimated 75 L in an 830,000 L public pool. Blackstock et al., <i>Environ. Sci. Technol. Lett.</i>, 2017.</p>
-          <p>Tracer gain applied for visibility. At these concentrations urine cannot be seen, which is the problem.</p>
+          <p><sup>1</sup> About 90 ppm: an estimated 75 L of urine in a 220,000 US gallon (830,000 L) public pool. Blackstock et al., <i>Environ. Sci. Technol. Lett.</i> 2017, 4, 149&ndash;153.</p>
+          <p>The colour is exaggerated. At these concentrations urine is not visible.</p>
         </footer>
       </div>
     </aside>
 
-    <div id="action">
-      <button id="pee" type="button"><span class="fill"></span><span class="text">PEE</span></button>
-      <div id="pee-sub">Initiate simultaneous release</div>
-    </div>
+    <aside id="card" hidden>
+      <header>
+        <div>
+          <b id="card-name">Swimmer</b>
+          <span id="card-status"></span>
+        </div>
+        <button id="card-close" type="button" aria-label="Close">&times;</button>
+      </header>
+      <div id="portrait" aria-label="Live view of the swimmer's face"></div>
+      <div class="card-body">
+        <div class="kv"><span>Released</span><b id="card-released"></b></div>
+        <div class="kv"><span>Flow</span><b id="card-flow"></b></div>
+        <div class="kv"><span>Water around them</span><b id="card-local"></b></div>
+        <div class="kv"><span>Height</span><b id="card-height"></b></div>
+        <button id="card-pee" type="button">Pee</button>
+      </div>
+    </aside>
 
-    <ol id="log" aria-live="polite"></ol>
+    <div id="action">
+      <button id="pee" type="button"><span class="text">Simultaneous release</span></button>
+    </div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>
