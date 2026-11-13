@@ -24,8 +24,8 @@ npm run build
 
 - **Pool size**: use the sliders, or drag the pool itself. The top edges change width and length, the base
   changes depth. Resizing replaces the water.
-- **Swimmers**: up to 100, or fewer if the pool is too small to hold them. **Spread evenly** sends everyone
-  to an evenly spaced spot.
+- **Swimmers**: up to 100, or fewer if the pool is too small to hold them. **Spread evenly** moves everyone
+  to an evenly spaced spot at once.
 - **Click a swimmer** to open their card: a live view of their face, how much they have released, their
   flow rate, and the concentration of the water around them. The card has its own Pee button.
 - **Drag a swimmer** (anywhere on the body) to move them. Drag empty space to orbit, scroll or pinch to zoom.

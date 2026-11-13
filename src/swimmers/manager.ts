@@ -70,7 +70,6 @@ export class SwimmerManager {
     for (const s of this.swimmers) {
       [s.x, s.z] = this.clamp(s.x, s.z);
       [s.targetX, s.targetZ] = this.clamp(s.targetX, s.targetZ);
-      if (s.goalX !== null) [s.goalX, s.goalZ] = this.clamp(s.goalX, s.goalZ);
     }
     this.resetWater();
     return removed;
@@ -169,8 +168,8 @@ export class SwimmerManager {
   }
 
   /**
-   * Send every swimmer to an evenly spaced position. Uses Lloyd relaxation starting from
-   * where they are now, so each swimmer travels a short way to their own spot.
+   * Move every swimmer to an evenly spaced position, instantly. Uses Lloyd relaxation
+   * starting from where they are now, so each swimmer ends up near where they began.
    */
   spreadEvenly() {
     const n = this.swimmers.length;
@@ -226,9 +225,12 @@ export class SwimmerManager {
         }
       }
     }
+    // Swimmers do not swim: they simply appear at their new spots.
     this.swimmers.forEach((s, i) => {
-      s.goalX = px[i];
-      s.goalZ = pz[i];
+      if (s.grabbed) return;
+      s.x = s.targetX = px[i];
+      s.z = s.targetZ = pz[i];
+      this.ripples.addDrop(s.x, s.z, 0.4, -0.02);
     });
   }
 
