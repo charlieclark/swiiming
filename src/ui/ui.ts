@@ -179,6 +179,16 @@ export class UI {
     $('volume').textContent = `${Math.round(litres).toLocaleString('en-US')} L`;
   }
 
+  /** Reflect dimensions changed elsewhere (dragging the pool's edges) in the sliders. */
+  setDims(dims: TankDims) {
+    this.dims = { ...dims };
+    for (const key of ['width', 'length', 'depth'] as const) {
+      $<HTMLInputElement>(`dim-${key}`).value = String(dims[key]);
+      $(`out-${key}`).textContent = `${dims[key].toFixed(1)} m`;
+    }
+    this.showVolume();
+  }
+
   setCount(n: number, capacity: number) {
     this.text.count.set(String(n));
     this.text.cap.set(String(capacity));

@@ -131,7 +131,11 @@ export class Stage {
     this.applyViewOffset();
   }
 
-  configure(dims: TankDims, snap = false) {
+  /**
+   * Fit lights, fog and framing to the tank. With `reframe` false the camera is left
+   * exactly where it is (used while the user is dragging the pool's edges).
+   */
+  configure(dims: TankDims, snap = false, reframe = true) {
     this.groundY = -dims.depth - SLAB_THICKNESS;
     this.ground.position.y = this.groundY;
     const tex = (this.ground.material as THREE.MeshStandardMaterial).map!;
@@ -158,11 +162,12 @@ export class Stage {
     const tanV = Math.tan(vFov / 2) * (usableH / h);
     const tanH = Math.tan(vFov / 2) * (w / h) * (usableW / w);
     this.fitDistance = (radius * (w < h ? 1.08 : 0.9)) / Math.sin(Math.atan(Math.min(tanV, tanH)));
-    this.controls.maxDistance = Math.max(40, this.fitDistance * 2.2);
+    if (reframe) this.controls.maxDistance = Math.max(40, this.fitDistance * 2.2);
     const fog = this.scene.fog as THREE.Fog;
     fog.near = this.fitDistance * 1.6 + 20;
     fog.far = this.fitDistance * 5 + 160;
 
+    if (!reframe) return;
     const target = new THREE.Vector3(0, -dims.depth * 0.45, 0);
     if (snap) {
       this.controls.target.copy(target);
