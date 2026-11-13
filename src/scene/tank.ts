@@ -46,6 +46,7 @@ export class Tank {
   constructor(
     renderer: THREE.WebGLRenderer,
     private ripples: Ripples,
+    reflections = true,
   ) {
     this.tiles = makeTileTexture(renderer);
     const floorMat = new THREE.MeshStandardMaterial({ map: this.tiles, roughness: 0.4, metalness: 0 });
@@ -107,7 +108,13 @@ export class Tank {
     this.slab.receiveShadow = true;
     this.slab.castShadow = true;
 
-    const steel = new THREE.MeshStandardMaterial({ color: COLORS.steel, roughness: 0.38, metalness: 0.85 });
+    // Metal is nearly black with nothing to reflect, so without an environment the frame
+    // is painted instead.
+    const steel = new THREE.MeshStandardMaterial(
+      reflections
+        ? { color: COLORS.steel, roughness: 0.38, metalness: 0.85 }
+        : { color: 0x5d666c, roughness: 0.55, metalness: 0 },
+    );
     const box = new THREE.BoxGeometry(1, 1, 1);
     for (let i = 0; i < 4; i++) {
       const post = new THREE.Mesh(box, steel);
@@ -144,8 +151,9 @@ export class Tank {
     this.highlight = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: 0xf2c41c }));
     this.highlight.visible = false;
 
-    this.opaque.add(this.floor, this.slab, ...this.posts, ...this.rails, ...this.waterline, this.dimLines, this.highlight);
-    this.glass.add(...this.panes);
+    this.opaque.add(this.floor, this.slab, ...this.posts, ...this.rails, ...this.waterline, this.highlight);
+    // The dimension lines sit outside the water, so they only need drawing in the main pass.
+    this.glass.add(...this.panes, this.dimLines);
   }
 
   configure(dims: TankDims) {

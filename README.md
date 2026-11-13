@@ -20,6 +20,9 @@ npm run build
 
 `npm run build` type-checks and writes a static site to `dist/` that can be hosted anywhere.
 
+Open the page with `?debug` added to the URL to see start-up timings, frame rate and the GPU name on
+screen. This is the easiest way to see where time goes on a phone.
+
 The link preview tags in `index.html` point at `https://pool.charliie.co/`, and the preview image is
 `public/og.jpg`. Update both if the site moves.
 

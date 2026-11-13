@@ -50,10 +50,12 @@ export class Stage {
 
     this.scene.background = new THREE.Color(COLORS.background);
     this.scene.fog = new THREE.Fog(COLORS.background, 60, 260);
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.42;
-    pmrem.dispose();
+    if (quality.reflections) {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      this.scene.environmentIntensity = 0.42;
+      pmrem.dispose();
+    }
 
     this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 700);
     this.camera.position.set(14, 6, 16);
@@ -74,7 +76,8 @@ export class Stage {
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.03;
     this.scene.add(this.sun, this.sun.target);
-    this.scene.add(new THREE.HemisphereLight(0xf4f8fb, 0xb9c2c8, 0.38));
+    // Without a reflection environment, plain ambient light makes up the difference.
+    this.scene.add(new THREE.HemisphereLight(0xf4f8fb, 0xb9c2c8, quality.reflections ? 0.38 : 0.95));
 
     this.ground = new THREE.Mesh(
       new THREE.PlaneGeometry(900, 900),
@@ -215,6 +218,23 @@ export class Stage {
     this.transparent.visible = true;
     r.setRenderTarget(null);
     r.render(this.scene, this.camera);
+  }
+
+  /**
+   * Compile every shader the scene needs before the first frame, for both passes. Where
+   * the browser supports it this happens off the main thread and in parallel, so the page
+   * stays responsive; elsewhere it costs nothing extra, since the first frame would have
+   * compiled them anyway.
+   */
+  async precompile() {
+    const r = this.renderer;
+    this.transparent.visible = false;
+    r.setRenderTarget(this.prepass);
+    const opaque = r.compileAsync(this.scene, this.camera);
+    this.transparent.visible = true;
+    r.setRenderTarget(null);
+    const all = r.compileAsync(this.scene, this.camera);
+    await Promise.all([opaque, all]);
   }
 
   /**
