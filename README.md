@@ -37,7 +37,8 @@ npm run build
 ## What the swimmers do
 
 - Tread water, with arms tucked in when they are crowded or near a wall. In water too shallow to tread
-  they stand, crouching to stay neck-deep, and in very shallow water they sit.
+  they stand, crouching to stay neck-deep, and in very shallow water they sit. With their feet on the
+  bottom they keep still, and show panic by bringing their hands up to their face.
 - Look relaxed while peeing, and ignore the water around them until they stop.
 - Panic on the spot when the water at their face is worse than a typical public pool (about 90 ppm), and
   keep going until it drops back under.

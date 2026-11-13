@@ -325,8 +325,10 @@ export class Swimmer {
 
     const hz = 1.05 * (1 - 0.4 * this.relief) * (1 + 0.55 * this.wPanic) + 0.5 * this.lift;
     this.phase += dt * Math.PI * 2 * hz;
-    this.vigor = this.spawn < 1 ? 0 : 1 - 0.4 * this.relief + 0.5 * this.wPanic;
-    this.splash = this.wPanic;
+    // Standing or sitting on the bottom, they hold still: little stirring, no splashing.
+    const afloat = 1 - this.grounded;
+    this.vigor = this.spawn < 1 ? 0 : (1 - 0.4 * this.relief + 0.5 * this.wPanic) * (0.15 + 0.85 * afloat);
+    this.splash = this.wPanic * afloat;
 
     // Turn to face the way they are being dragged.
     if (this.grabbed && Math.hypot(this.vx, this.vz) > 0.35) this.turnToward(Math.atan2(this.vx, this.vz), 4, dt);
@@ -412,6 +414,13 @@ export class Swimmer {
     }
   }
 
+  /** 0 when treading in deep water, 1 when the swimmer's feet are on the bottom. */
+  get grounded() {
+    const rel = this.depth / this.look.height;
+    const t = Math.max(0, Math.min(1, (1.76 - rel) / 0.2));
+    return t * t * (3 - 2 * t);
+  }
+
   /**
    * Water too shallow to tread in: put the feet on the bottom. Down to neck-deep the
    * swimmer crouches so the water stays at their neck; shallower than that they sit on
@@ -422,8 +431,7 @@ export class Swimmer {
    */
   private touchBottom(p: Float32Array, time: number) {
     const rel = this.depth / this.look.height;
-    const t = Math.max(0, Math.min(1, (1.76 - rel) / 0.2));
-    const grounded = t * t * (3 - 2 * t);
+    const grounded = this.grounded;
     if (grounded <= 0.001) return;
 
     const seated = Math.max(0, SEAT_HEIGHT - rel);
@@ -449,14 +457,12 @@ export class Swimmer {
       clearance = Math.max(HEEL, FOOT_HALF + FOOT_DROP * Math.cos(shin) - FOOT_AHEAD * Math.sin(shin));
     }
 
-    const v = Math.max(0, Math.min(1, seated / 0.12));
-    const armsDown = v * v * (3 - 2 * v);
     // Feet planted: no bobbing, and no forward lean (it would dip the feet).
     p[RISE] += (seated - p[RISE]) * grounded;
     p[PITCH] += (0 - p[PITCH]) * grounded;
-    // Someone sitting on the bottom sits still. Panic shows in the arms instead: hands
-    // fly up to the face and tremble.
-    p[ROLL] *= 1 - armsDown;
+    // With their feet on the bottom, standing or sitting, a swimmer keeps still. Panic
+    // shows in the arms instead: hands fly up to the face and tremble.
+    p[ROLL] *= 1 - grounded;
     const fright = this.wPanic;
     const tremble = 0.045 * Math.sin((time + this.seed) * 19) * fright;
     for (let i = 0; i < 2; i++) {
@@ -467,14 +473,13 @@ export class Swimmer {
       p[l + 2] += (2 * bend - p[l + 2]) * grounded;
       p[l + 3] += (0 - p[l + 3]) * grounded;
       p[l + 4] += (shin - p[l + 4]) * grounded; // keeps the sole level
-      // Out of the water there is nothing to scull: arms rest at the sides, or come up
-      // to the cheeks in a fright.
+      // No need to scull: arms rest at the sides, or come up to the cheeks in a fright.
       const a = ARM[i];
-      p[a] += (0.1 - 1.3 * fright - p[a]) * armsDown;
-      p[a + 1] += (0 - p[a + 1]) * armsDown;
-      p[a + 2] += (side * (0.22 - 0.1 * fright) - p[a + 2]) * armsDown;
-      p[a + 3] += (-0.5 - 1.55 * fright + tremble * side - p[a + 3]) * armsDown;
-      p[a + 4] += (-side * 0.42 * fright - p[a + 4]) * armsDown;
+      p[a] += (0.1 - 1.3 * fright - p[a]) * grounded;
+      p[a + 1] += (0 - p[a + 1]) * grounded;
+      p[a + 2] += (side * (0.22 - 0.1 * fright) - p[a + 2]) * grounded;
+      p[a + 3] += (-0.5 - 1.55 * fright + tremble * side - p[a + 3]) * grounded;
+      p[a + 4] += (-side * 0.42 * fright - p[a + 4]) * grounded;
     }
   }
 
