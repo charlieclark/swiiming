@@ -349,6 +349,41 @@ export class SwimmerManager {
     }
   }
 
+  /** Distance from (x, z) to the nearest wall along a heading. */
+  private roomAlong(x: number, z: number, heading: number) {
+    const dx = Math.sin(heading);
+    const dz = Math.cos(heading);
+    const hw = this.dims.width / 2;
+    const hl = this.dims.length / 2;
+    const tx = dx > 1e-6 ? (hw - x) / dx : dx < -1e-6 ? (-hw - x) / dx : Infinity;
+    const tz = dz > 1e-6 ? (hl - z) / dz : dz < -1e-6 ? (-hl - z) / dz : Infinity;
+    return Math.min(tx, tz);
+  }
+
+  /**
+   * Tell each swimmer how much room they have in front of them. Someone sitting in a
+   * cramped tub turns to face the way with the most legroom.
+   */
+  private findLegroom(dt: number) {
+    for (const s of this.swimmers) {
+      s.ahead = this.roomAlong(s.x, s.z, s.facing);
+      const sitting = this.dims.depth / s.look.height < 0.9;
+      if (!sitting || s.grabbed || s.ahead >= 0.78 * s.look.height) continue;
+      let best = s.facing;
+      let bestRoom = s.ahead + 0.05;
+      for (let i = 0; i < 8; i++) {
+        const heading = (i / 8) * Math.PI * 2;
+        const room = this.roomAlong(s.x, s.z, heading);
+        if (room > bestRoom) {
+          bestRoom = room;
+          best = heading;
+        }
+      }
+      const delta = Math.atan2(Math.sin(best - s.facing), Math.cos(best - s.facing));
+      s.facing += delta * (1 - Math.exp(-3 * dt));
+    }
+  }
+
   update(dt: number, time: number, timeScale = 1) {
     for (const s of this.swimmers) {
       const wasAirborne = s.spawn < 1;
@@ -360,6 +395,7 @@ export class SwimmerManager {
       }
     }
     this.resolveCrowding();
+    this.findLegroom(dt);
 
     this.batch.begin();
     const hand = this.tmp3;
