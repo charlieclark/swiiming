@@ -25,6 +25,8 @@ const fluid = new FluidClient(quality.simCells);
 let dims: TankDims = { ...DEFAULT_TANK };
 /** True while the main button is holding everyone's release open. */
 let releasing = false;
+/** Time multiplier chosen with the speed control. */
+let speed = 1;
 
 const swimmers = new SwimmerManager(ripples, {
   onSplash: (strength) => sound.splash(strength),
@@ -50,6 +52,11 @@ const ui = new UI(
       swimmers.setAllPeeing(releasing);
       sound.press();
     },
+    onSpeed: (next) => {
+      sound.unlock();
+      speed = next;
+      sound.tick();
+    },
     onSpread: () => {
       sound.unlock();
       swimmers.spreadEvenly();
@@ -58,7 +65,7 @@ const ui = new UI(
     onDrain: () => {
       sound.unlock();
       releasing = false;
-      swimmers.setAllPeeing(false);
+      swimmers.stopAll();
       resetWater();
       sound.drain();
     },
@@ -326,9 +333,11 @@ function frame(now: number) {
   last = now;
   time += dt;
 
-  swimmers.update(dt, time);
+  // Fast-forward speeds up the release and the water. Swimmers and ripples keep their
+  // natural pace so the scene stays readable.
+  swimmers.update(dt, time, speed);
   ripples.update(dt);
-  fluid.update(dt);
+  fluid.update(dt * speed);
 
   const peeing = swimmers.peeingCount;
   if (releasing && swimmers.count === 0) releasing = false;

@@ -73,14 +73,14 @@ export class WaterSurface {
           float alpha = clamp(max(fresnel, 0.12) + spec * 0.4, 0.0, 1.0);
           // Steep, freshly disturbed water catches the light: a soft white sheen on ripples.
           float churn = smoothstep(0.035, 0.24, length(gr));
-          col = mix(col, vec3(1.25), churn * 0.6);
-          alpha = max(alpha, churn * 0.5);
-          // Foam where bodies break the surface: this is what marks the waterline on them.
+          col = mix(col, vec3(1.2), churn * 0.35);
+          alpha = max(alpha, churn * 0.28);
+          // A little foam where bodies break the surface hints at the waterline on them.
           float foam = texture2D(uRipple, rippleUv(vWorld.xz)).b;
           float grain = 0.5 + 0.5 * sin(vWorld.x * 23.0 + vWorld.z * 9.0 + uTime * 2.6) * sin(vWorld.z * 19.0 - vWorld.x * 7.0 - uTime * 2.1);
-          float lather = smoothstep(0.28, 0.95, foam * (0.82 + 0.36 * grain));
-          col = mix(col, vec3(1.35), lather * 0.9);
-          alpha = max(alpha, lather * 0.85);
+          float lather = smoothstep(0.2, 1.0, foam * (0.82 + 0.36 * grain));
+          col = mix(col, vec3(1.25), lather * 0.4);
+          alpha = max(alpha, lather * 0.36);
           gl_FragColor = vec4(col, alpha);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>

@@ -27,6 +27,8 @@ const HEAD_Z = 0.014;
 const BROW_Y = 0.034;
 const MOUTH_W = 0.024;
 const MOUTH_H = 0.0042;
+/** Half-width a swimmer takes up with arms fully tucked in (m). */
+const MIN_REACH = 0.37;
 
 const FACE_DARK = new THREE.Color(0x1b1614);
 const EYE_WHITE = new THREE.Color(0xf4f1ec);
@@ -243,8 +245,12 @@ export class Swimmer {
     return this.peeing ? `${base}, peeing` : base;
   }
 
-  /** Advance state and position. Returns litres released this frame. */
-  update(dt: number, time: number) {
+  /**
+   * Advance state and position. `timeScale` is the fast-forward factor: it multiplies how
+   * much is released, but movement and expressions stay at their natural pace.
+   * Returns litres released this frame.
+   */
+  update(dt: number, time: number, timeScale = 1) {
     if (this.removing) this.spawn = Math.max(0, this.spawn - dt * 3.5);
     else if (this.spawn < 1) this.spawn = Math.min(1, this.spawn + dt * 2.2);
 
@@ -275,7 +281,7 @@ export class Swimmer {
     // Peeing
     this.flowNow = approach(this.flowNow, this.peeing && !this.removing ? this.look.flow : 0, 1.6, dt);
     if (this.flowNow < 1e-5) this.flowNow = 0;
-    const q = this.flowNow * dt;
+    const q = this.flowNow * dt * timeScale;
     this.released += q;
     this.pending += q;
 
@@ -285,11 +291,11 @@ export class Swimmer {
     this.panicFace = approach(this.panicFace, exposed ? 1 : 0, 6, dt);
     this.relief = approach(this.relief, this.peeing && !exposed ? 1 : 0, 3, dt);
     this.lift = approach(this.lift, this.grabbed ? 1 : 0, 8, dt);
-    this.reach = approach(this.reach, Math.max(0.42, Math.min(0.8, this.space / this.look.height)), 5, dt);
+    this.reach = approach(this.reach, Math.max(MIN_REACH, Math.min(0.8, this.space / this.look.height)), 5, dt);
 
-    const hz = 1.05 * (1 - 0.4 * this.relief) * (1 + 0.95 * this.wPanic) + 0.5 * this.lift;
+    const hz = 1.05 * (1 - 0.4 * this.relief) * (1 + 0.55 * this.wPanic) + 0.5 * this.lift;
     this.phase += dt * Math.PI * 2 * hz;
-    this.vigor = this.spawn < 1 ? 0 : 1 - 0.4 * this.relief + 0.8 * this.wPanic;
+    this.vigor = this.spawn < 1 ? 0 : 1 - 0.4 * this.relief + 0.5 * this.wPanic;
     this.splash = this.wPanic;
 
     // Turn to face the way they are being dragged.
@@ -347,23 +353,23 @@ export class Swimmer {
     }
   }
 
-  /** Thrashing on the spot with arms in the air. */
-  private fillPanic(p: Float32Array, time: number) {
+  /** Agitated on the spot: riding higher, arms slapping at the surface, head turning. */
+  private fillPanic(p: Float32Array, time: number, k: number) {
     const ph = this.phase;
     const t = time + this.seed;
-    p[PITCH] = -0.04;
-    p[RISE] = 0.12 + 0.05 * Math.sin(ph * 2);
-    p[ROLL] = 0.12 * Math.sin(ph * 1.3);
-    p[HEAD_PITCH] = -0.3;
-    p[HEAD_YAW] = 0.6 * Math.sin(t * 7.3);
+    p[PITCH] = -0.02;
+    p[RISE] = 0.055 + 0.025 * Math.sin(ph * 2);
+    p[ROLL] = 0.07 * Math.sin(ph * 1.3);
+    p[HEAD_PITCH] = -0.24;
+    p[HEAD_YAW] = 0.45 * Math.sin(t * 3.4);
     p[SHIFT] = 0;
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
       const a = ARM[i];
-      p[a] = 0.35 * Math.sin(ph * 1.7 + side);
-      p[a + 1] = -side * 0.25;
-      p[a + 2] = side * (2.45 + 0.5 * Math.sin(ph * 2 + side * 1.3));
-      p[a + 3] = -(0.45 + 0.4 * Math.sin(ph * 2.3 + side));
+      p[a] = 0.2 * Math.sin(ph * 1.7 + side);
+      p[a + 1] = -side * 0.3;
+      p[a + 2] = side * (1.72 + 0.3 * Math.sin(ph * 2 + side * 1.3)) * (0.5 + 0.5 * k);
+      p[a + 3] = -(0.7 + 0.35 * Math.sin(ph * 2.3 + side));
       p[a + 4] = 0;
       const l = LEG[i];
       const lp = ph + (side > 0 ? 0 : Math.PI);
@@ -384,10 +390,10 @@ export class Swimmer {
   /** Write the current pose into the skeleton and update world matrices. */
   applyPose(dt: number, time: number) {
     const p = this.pose;
-    const k = (this.reach - 0.42) / (0.8 - 0.42);
+    const k = (this.reach - MIN_REACH) / (0.8 - MIN_REACH);
     this.fillTread(p, time, k);
     if (this.wPanic > 0.001) {
-      this.fillPanic(scratch, time);
+      this.fillPanic(scratch, time, k);
       this.blend(this.wPanic);
     }
     // Whole body
@@ -404,7 +410,7 @@ export class Swimmer {
       p[SHIFT],
     );
     this.body.rotation.set(p[PITCH] + lean, 0, p[ROLL]);
-    this.lookYaw = approach(this.lookYaw, p[HEAD_YAW], this.wPanic > 0.5 ? 30 : 2.5, dt);
+    this.lookYaw = approach(this.lookYaw, p[HEAD_YAW], this.wPanic > 0.5 ? 12 : 2.5, dt);
     this.headPivot.rotation.set(p[HEAD_PITCH] - lean, this.lookYaw, -p[ROLL]);
 
     for (let i = 0; i < 2; i++) {
@@ -424,23 +430,23 @@ export class Swimmer {
     const panic = this.panicFace;
     const relief = this.relief;
     const blink = panic < 0.5 && Math.sin(t * 0.9) > 0.995 ? 0.12 : 1;
-    const open = Math.max(0.1, (1 - 0.55 * relief + 0.5 * panic) * blink);
-    const pupil = 0.0105 * (1 - 0.28 * panic);
+    const open = Math.max(0.1, (1 - 0.55 * relief + 0.32 * panic) * blink);
+    const pupil = 0.0105 * (1 - 0.18 * panic);
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
       this.whites[i].scale.set(0.02 * (1 + 0.12 * panic), 0.016 * open, 0.008);
       this.pupils[i].scale.set(pupil, Math.min(pupil, 0.015 * open), 0.005);
       const brow = this.brows[i];
-      brow.position.y = HEAD_Y + BROW_Y + 0.008 * relief + 0.015 * panic;
-      brow.rotation.z = -side * (0.5 * panic - 0.1 * relief);
+      brow.position.y = HEAD_Y + BROW_Y + 0.008 * relief + 0.01 * panic;
+      brow.rotation.z = -side * (0.38 * panic - 0.1 * relief);
     }
-    const scream = 0.78 + 0.22 * Math.sin(t * 11);
+    const scream = 0.85 + 0.15 * Math.sin(t * 5);
     this.mouth.scale.set(
-      MOUTH_W * (1 - 0.5 * relief + 0.3 * panic),
-      MOUTH_H * (1 + 2.0 * relief + 7.5 * panic * scream),
+      MOUTH_W * (1 - 0.5 * relief + 0.1 * panic),
+      MOUTH_H * (1 + 2.0 * relief + 3.6 * panic * scream),
       0.012,
     );
-    this.mouth.position.y = HEAD_Y - 0.064 - 0.012 * panic;
+    this.mouth.position.y = HEAD_Y - 0.064 - 0.006 * panic;
 
     this.root.updateMatrix();
     this.root.matrixWorld.copy(this.root.matrix);

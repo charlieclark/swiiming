@@ -7,6 +7,7 @@ export interface UICallbacks {
   onDims(dims: TankDims): void;
   onCount(n: number): void;
   onRelease(): void;
+  onSpeed(multiplier: number): void;
   onSpread(): void;
   onDrain(): void;
   onSound(on: boolean): void;
@@ -15,8 +16,8 @@ export interface UICallbacks {
   onCardClose(): void;
 }
 
-const METER_MIN = 0.1; // ppm
-const METER_DECADES = 6;
+/** The meter is linear and runs from zero to this many times the public pool estimate. */
+const METER_SPAN = 2;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -121,6 +122,16 @@ export class UI {
     $('sub-plus').addEventListener('click', () => this.cb.onCount(Number(this.countInput.value) + 1));
     $('spread').addEventListener('click', () => this.cb.onSpread());
     this.pee.addEventListener('click', () => this.cb.onRelease());
+    const speedButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('#speed button'));
+    for (const button of speedButtons) {
+      button.addEventListener('click', () => {
+        for (const other of speedButtons) {
+          other.classList.toggle('on', other === button);
+          other.setAttribute('aria-pressed', String(other === button));
+        }
+        this.cb.onSpeed(Number(button.dataset.speed));
+      });
+    }
     $('drain').addEventListener('click', () => this.cb.onDrain());
     const sound = $('sound');
     sound.addEventListener('click', () => {
@@ -164,14 +175,13 @@ export class UI {
       const open = !this.panel.classList.contains('collapsed');
       if (open) return { x: 0, y: -this.panel.offsetHeight / 2 };
       // With the swimmer card showing at the top, sit the pool lower so both are visible.
-      return { x: 0, y: this.card.hidden ? -70 : 26 };
+      return { x: 0, y: this.card.hidden ? -88 : 14 };
     }
-    return { x: (this.panel.offsetWidth + 16) / 2, y: -26 };
+    return { x: (this.panel.offsetWidth + 16) / 2, y: -40 };
   }
 
   private meterFraction(ppm: number) {
-    if (ppm <= METER_MIN) return 0;
-    return Math.min(1, Math.log10(ppm / METER_MIN) / METER_DECADES);
+    return Math.max(0, Math.min(1, ppm / (REFERENCE_PPM * METER_SPAN)));
   }
 
   private showVolume() {

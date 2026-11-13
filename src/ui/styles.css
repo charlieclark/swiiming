@@ -273,11 +273,16 @@ button:disabled {
 .meter {
   position: relative;
   height: 8px;
-  margin: 26px 0 10px;
+  margin: 26px 0 4px;
   border-radius: 2px;
-  background:
-    repeating-linear-gradient(90deg, transparent 0, transparent calc(100% / 6 - 1px), rgba(23, 35, 44, 0.25) calc(100% / 6 - 1px), rgba(23, 35, 44, 0.25) calc(100% / 6)),
-    rgba(23, 35, 44, 0.09);
+  background: rgba(23, 35, 44, 0.09);
+}
+.scale {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 9px;
+  font-size: 10px;
+  color: var(--muted);
 }
 .meter .fill {
   position: absolute;
@@ -409,9 +414,49 @@ footer p {
 #action {
   position: fixed;
   left: calc(50% + (var(--panel-w) + 16px) / 2);
-  bottom: max(30px, env(safe-area-inset-bottom));
+  bottom: max(18px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
   pointer-events: none;
+}
+
+#speed {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 3px 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+#speed span {
+  margin-right: 6px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+#speed button {
+  min-width: 38px;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+#speed button:hover {
+  background: rgba(23, 35, 44, 0.07);
+}
+#speed button.on {
+  background: var(--ink);
+  color: #fff;
 }
 
 #pee {
@@ -554,8 +599,16 @@ footer p {
   }
   #action {
     left: 50%;
-    bottom: calc(64px + env(safe-area-inset-bottom));
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    gap: 13px;
     transition: opacity 0.2s;
+  }
+  #speed button {
+    min-width: 44px;
+    height: 32px;
+  }
+  body.sheet-open #speed {
+    pointer-events: none;
   }
   body.sheet-open #action {
     opacity: 0;

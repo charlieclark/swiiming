@@ -22,7 +22,7 @@ export class Tank {
   private floor: THREE.Mesh;
   private slab: THREE.Mesh;
   private panes: THREE.Mesh[] = [];
-  /** Thin bright line on the glass at water level. */
+  /** Hairline on the glass at water level. */
   private waterline: THREE.Mesh[] = [];
   private posts: THREE.Mesh[] = [];
   private rails: THREE.Mesh[] = [];
@@ -138,7 +138,7 @@ export class Tank {
       new THREE.LineBasicMaterial({ color: 0x4a5a66, transparent: true, opacity: 0.75 }),
     );
 
-    const lineMat = new THREE.MeshBasicMaterial({ color: 0xf2fbfd });
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0xa9c6ce });
     for (let i = 0; i < 4; i++) this.waterline.push(new THREE.Mesh(box, lineMat));
 
     this.highlight = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: 0xf2c41c }));
@@ -163,14 +163,14 @@ export class Tank {
     this.slab.position.set(0, -D - SLAB_THICKNESS / 2 - 0.002, 0);
 
     // Waterline on the inside of each pane
-    const t = 0.012;
-    this.waterline[0].scale.set(t, 0.022, L);
+    const t = 0.006;
+    this.waterline[0].scale.set(t, 0.008, L);
     this.waterline[0].position.set(W / 2 - t / 2, 0, 0);
-    this.waterline[1].scale.set(t, 0.022, L);
+    this.waterline[1].scale.set(t, 0.008, L);
     this.waterline[1].position.set(-W / 2 + t / 2, 0, 0);
-    this.waterline[2].scale.set(W, 0.022, t);
+    this.waterline[2].scale.set(W, 0.008, t);
     this.waterline[2].position.set(0, 0, L / 2 - t / 2);
-    this.waterline[3].scale.set(W, 0.022, t);
+    this.waterline[3].scale.set(W, 0.008, t);
     this.waterline[3].position.set(0, 0, -L / 2 + t / 2);
 
     // Panes: +x, -x, +z, -z

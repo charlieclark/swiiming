@@ -66,13 +66,15 @@
           <h2>Water</h2>
           <div class="big"><b id="ppm">0.00</b><span id="ppm-unit">ppm</span></div>
           <div class="caption">Urine concentration, pool average (by volume)</div>
-          <div class="meter" role="img" aria-label="Concentration on a logarithmic scale">
+          <div class="meter" role="img" aria-label="Concentration compared with a typical public pool">
             <div class="fill" id="meter-fill"></div>
             <div class="ref" id="meter-ref"><span>public pool<sup>1</sup></span></div>
           </div>
+          <div class="scale"><span>0</span><span>2&times; public pool</span></div>
           <div class="assessment" id="assessment"></div>
           <div class="kv"><span>Released</span><b id="released">0.00 L</b></div>
           <div class="kv"><span>Peeing now</span><b id="peeing">0 of 0</b></div>
+          <p class="hint">Swimmers panic when the water at their face is worse than a typical public pool.</p>
         </section>
 
         <section class="actions">
@@ -107,6 +109,13 @@
 
     <div id="action">
       <button id="pee" type="button"><span class="text">Simultaneous release</span></button>
+      <div id="speed" role="group" aria-label="Speed of time">
+        <span>Speed</span>
+        <button type="button" data-speed="1" class="on" aria-pressed="true">1&times;</button>
+        <button type="button" data-speed="2" aria-pressed="false">2&times;</button>
+        <button type="button" data-speed="5" aria-pressed="false">5&times;</button>
+        <button type="button" data-speed="10" aria-pressed="false">10&times;</button>
+      </div>
     </div>
 
     <script type="module" src="/src/main.ts"></script>
