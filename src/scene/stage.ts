@@ -3,6 +3,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { COLORS, SLAB_THICKNESS, type Quality, type TankDims } from '../config';
 
+/** How far in front of the face the portrait camera sits (m, before the swimmer's scale). */
+const PORTRAIT_DISTANCE = 0.56;
+/** Chosen so the head fills the frame as it did from further away. */
+const PORTRAIT_FOV = 36;
+
 /**
  * Renderer, camera, lights and the two-pass pipeline:
  *  1. opaque scene -> offscreen colour + depth (read by the water volume shader)
@@ -23,9 +28,11 @@ export class Stage {
   private ground: THREE.Mesh;
   private groundY = 0;
   private fitDistance = 20;
-  private autoFrameUntil = 0;
+  /** True while the camera is gliding to a distance that frames the whole pool. */
+  private autoFrame = false;
+  private lastUpdate = performance.now();
   private viewShift = { x: 0, y: 0 };
-  private portraitCamera = new THREE.PerspectiveCamera(21, 1, 0.25, 2.1);
+  private portraitCamera = new THREE.PerspectiveCamera(PORTRAIT_FOV, 1, 0.1, 2);
   private portraitUp = new THREE.Vector3();
   private portraitAt = new THREE.Vector3();
 
@@ -57,9 +64,9 @@ export class Stage {
     this.controls.rotateSpeed = 0.7;
     this.controls.zoomSpeed = 0.8;
     this.controls.maxPolarAngle = Math.PI * 0.56;
-    this.controls.minDistance = 2.5;
+    this.controls.minDistance = 1.2;
     this.controls.screenSpacePanning = true;
-    this.controls.addEventListener('start', () => (this.autoFrameUntil = 0));
+    this.controls.addEventListener('start', () => (this.autoFrame = false));
 
     this.sun = new THREE.DirectionalLight(0xfff6ea, 2.0);
     this.sun.castShadow = true;
@@ -141,7 +148,8 @@ export class Stage {
     const tex = (this.ground.material as THREE.MeshStandardMaterial).map!;
     tex.repeat.set(900, 900);
 
-    const radius = 0.5 * Math.hypot(dims.width, dims.length, dims.depth + 1);
+    // Never frame tighter than a person: in a bathtub the bather is bigger than the tub.
+    const radius = Math.max(1.4, 0.5 * Math.hypot(dims.width, dims.length, dims.depth + 1));
     this.sun.position.copy(this.sunDir).multiplyScalar(radius * 2.2 + 20);
     this.sun.target.position.set(0, -dims.depth * 0.5, 0);
     const cam = this.sun.shadow.camera;
@@ -168,7 +176,8 @@ export class Stage {
     fog.far = this.fitDistance * 5 + 160;
 
     if (!reframe) return;
-    const target = new THREE.Vector3(0, -dims.depth * 0.45, 0);
+    // In very shallow water people sit up out of it, so aim a little higher.
+    const target = new THREE.Vector3(0, -dims.depth * 0.45 + Math.max(0, 0.72 - dims.depth) * 0.6, 0);
     if (snap) {
       this.controls.target.copy(target);
       const dir = new THREE.Vector3(0.66, 0.26, 0.7).normalize();
@@ -176,16 +185,21 @@ export class Stage {
       this.controls.update();
     } else {
       this.controls.target.copy(target);
-      this.autoFrameUntil = performance.now() + 900;
+      this.autoFrame = true;
     }
   }
 
   update() {
-    if (performance.now() < this.autoFrameUntil) {
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - this.lastUpdate) / 1000);
+    this.lastUpdate = now;
+    if (this.autoFrame) {
+      // Time-based, so it takes the same half second or so at any frame rate.
       const offset = this.camera.position.clone().sub(this.controls.target);
       const dist = offset.length();
-      const next = THREE.MathUtils.lerp(dist, this.fitDistance, 0.12);
+      const next = dist + (this.fitDistance - dist) * (1 - Math.exp(-7 * dt));
       this.camera.position.copy(this.controls.target).addScaledVector(offset.normalize(), next);
+      if (Math.abs(next - this.fitDistance) < this.fitDistance * 0.004) this.autoFrame = false;
     }
     this.controls.update();
     const minY = this.groundY + 0.35;
@@ -205,10 +219,11 @@ export class Stage {
 
   /**
    * Draw a close-up of a head into a rectangle of the canvas (CSS pixels, as from
-   * getBoundingClientRect). The far plane is close enough that only that swimmer and
-   * the plain backdrop are visible, like an ID photo.
+   * getBoundingClientRect). `backdrop` (the pool structure) is hidden and the near and far
+   * planes hug the head, so only that swimmer shows against a plain backdrop, like an
+   * ID photo.
    */
-  renderPortrait(rect: DOMRect, headMatrix: THREE.Matrix4) {
+  renderPortrait(rect: DOMRect, headMatrix: THREE.Matrix4, backdrop: THREE.Object3D) {
     const canvasRect = this.canvas.getBoundingClientRect();
     const w = Math.round(rect.width);
     const h = Math.round(rect.height);
@@ -220,9 +235,14 @@ export class Stage {
     // Head centre sits at local (0, 0.12, 0.014); its +Z axis is the way the face points.
     this.portraitAt.set(0, 0.118, 0.014).applyMatrix4(headMatrix);
     this.portraitUp.set(e[4], e[5], e[6]).normalize();
-    cam.position.set(0, 0.125, 0.99).applyMatrix4(headMatrix);
+    cam.position.set(0, 0.125, PORTRAIT_DISTANCE).applyMatrix4(headMatrix);
     cam.up.copy(this.portraitUp);
     cam.lookAt(this.portraitAt);
+    // Start drawing just in front of the face, so a rail, a raised arm or a neighbour
+    // standing between the camera and the swimmer cannot block the view.
+    const distance = cam.position.distanceTo(this.portraitAt);
+    cam.near = Math.max(0.05, distance - 0.2);
+    cam.far = distance + 0.9;
     cam.aspect = w / h;
     cam.updateProjectionMatrix();
 
@@ -231,7 +251,9 @@ export class Stage {
     r.setScissor(x, y, w, h);
     r.setScissorTest(true);
     this.transparent.visible = false;
+    backdrop.visible = false;
     r.render(this.scene, cam);
+    backdrop.visible = true;
     this.transparent.visible = true;
     r.setScissorTest(false);
     r.setViewport(0, 0, canvasRect.width, canvasRect.height);

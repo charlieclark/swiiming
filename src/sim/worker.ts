@@ -2,7 +2,7 @@
 import { FluidSim, SUBJECT_STRIDE } from './fluid';
 
 export type ToWorker =
-  | { type: 'init'; gen: number; width: number; depth: number; length: number; targetCells: number }
+  | { type: 'init'; gen: number; width: number; depth: number; length: number; targetCells: number; keepDye: boolean }
   | { type: 'step'; gen: number; dt: number; subjects: Float32Array; count: number; expectedLitres: number };
 
 export interface FrameMessage {
@@ -25,7 +25,9 @@ const ctx = self as unknown as DedicatedWorkerGlobalScope;
 ctx.onmessage = (ev: MessageEvent<ToWorker>) => {
   const msg = ev.data;
   if (msg.type === 'init') {
-    sim = new FluidSim(msg.width, msg.depth, msg.length, msg.targetCells);
+    const next = new FluidSim(msg.width, msg.depth, msg.length, msg.targetCells);
+    if (msg.keepDye && sim) next.adoptDye(sim);
+    sim = next;
     gen = msg.gen;
     return;
   }

@@ -38,13 +38,16 @@ export class FluidClient {
     };
   }
 
-  /** Rebuild the solver for new tank dimensions. All dye is discarded. */
-  configure(width: number, depth: number, length: number) {
+  /**
+   * Rebuild the solver for new tank dimensions. With `keepDye` the urine already in the
+   * water is carried over; otherwise the tank starts clean.
+   */
+  configure(width: number, depth: number, length: number, keepDye = false) {
     this.gen++;
     this.busy = false;
     this.acc = 0;
     this.grid = chooseGrid(width, depth, length, this.targetCells);
-    const msg: ToWorker = { type: 'init', gen: this.gen, width, depth, length, targetCells: this.targetCells };
+    const msg: ToWorker = { type: 'init', gen: this.gen, width, depth, length, targetCells: this.targetCells, keepDye };
     this.worker.postMessage(msg);
     return this.grid;
   }

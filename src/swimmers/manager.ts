@@ -58,7 +58,10 @@ export class SwimmerManager {
     return n;
   }
 
-  /** New tank footprint. Returns swimmers that no longer fit and were removed. */
+  /**
+   * New tank size. The urine already released stays in the water. Returns how many
+   * swimmers no longer fit and were removed.
+   */
   configure(dims: TankDims) {
     this.dims = dims;
     this.capacity = capacity(dims);
@@ -70,8 +73,8 @@ export class SwimmerManager {
     for (const s of this.swimmers) {
       [s.x, s.z] = this.clamp(s.x, s.z);
       [s.targetX, s.targetZ] = this.clamp(s.targetX, s.targetZ);
+      s.depth = dims.depth;
     }
-    this.resetWater();
     return removed;
   }
 
@@ -124,6 +127,7 @@ export class SwimmerManager {
   add(instant = false) {
     if (this.swimmers.length >= this.capacity) return null;
     const s = new Swimmer(this.nextId());
+    s.depth = this.dims.depth;
     const [x, z] = this.findSpot();
     s.x = s.targetX = x;
     s.z = s.targetZ = z;

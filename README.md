@@ -22,12 +22,13 @@ npm run build
 
 ## Controls
 
-- **Pool size**: use the sliders, or drag the pool itself. The top edges change width and length, the base
-  changes depth. Resizing replaces the water.
+- **Pool size**: use the sliders, pick a preset (bathtub, hot tub, backyard pool, 25 m pool, Olympic pool),
+  or drag the pool itself: the top edges change width and length, the base changes depth. Resizing keeps
+  the urine already in the water, so a smaller pool is more concentrated and a larger one more dilute.
 - **Swimmers**: up to 100, or fewer if the pool is too small to hold them. **Spread evenly** moves everyone
   to an evenly spaced spot at once.
 - **Click a swimmer** to open their card: a live view of their face, how much they have released, their
-  flow rate, and the concentration of the water around them. The card has its own Pee button.
+  flow rate, how long they have been peeing, and the concentration of the water around them. The card has its own Pee button.
 - **Drag a swimmer** (anywhere on the body) to move them. Drag empty space to orbit, scroll or pinch to zoom.
 - **Simultaneous release** (or the space bar): everyone pees until you press it again.
 - **Speed**: 1x to 10x. Speeds up the release and the movement of the water; swimmers keep their normal pace.
@@ -35,7 +36,8 @@ npm run build
 
 ## What the swimmers do
 
-- Tread water, with arms tucked in when they are crowded or near a wall.
+- Tread water, with arms tucked in when they are crowded or near a wall. In water too shallow to tread
+  they stand, crouching to stay neck-deep, and in very shallow water they sit.
 - Look relaxed while peeing, and ignore the water around them until they stop.
 - Panic on the spot when the water at their face is worse than a typical public pool (about 90 ppm), and
   keep going until it drops back under.

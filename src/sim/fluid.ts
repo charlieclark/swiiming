@@ -690,6 +690,49 @@ export class FluidSim {
     return litres;
   }
 
+  /** Litres of dye currently in the grid. */
+  totalLitres() {
+    let sum = 0;
+    for (let i = 0; i < this.n; i++) sum += this.d[i];
+    return sum * this.cellVolume;
+  }
+
+  /**
+   * Carry dye over from a tank of a different size. Dye stays where it was in the room;
+   * whatever falls outside the new walls is folded back in, so the total is unchanged.
+   * (Growing the tank dilutes it, shrinking the tank concentrates it.)
+   */
+  adoptDye(old: FluidSim) {
+    const total = old.totalLitres();
+    if (total <= 0) return;
+    const { nx, ny, nz, d } = this;
+    const ox = old.width / 2;
+    const oz = old.length / 2;
+    let sum = 0;
+    for (let k = 0; k < nz; k++) {
+      const z = -this.length / 2 + (k + 0.5) * this.hz;
+      for (let j = 0; j < ny; j++) {
+        const y = -this.depth + (j + 0.5) * this.hy;
+        const base = nx * (j + ny * k);
+        for (let i = 0; i < nx; i++) {
+          const x = -this.width / 2 + (i + 0.5) * this.hx;
+          const inside = x > -ox && x < ox && z > -oz && z < oz && y > -old.depth;
+          const v = inside ? old.sample(x, y, z) : 0;
+          d[base + i] = v;
+          sum += v;
+        }
+      }
+    }
+    const carried = sum * this.cellVolume;
+    if (carried > total * 1e-4) {
+      const scale = total / carried;
+      for (let i = 0; i < this.n; i++) d[i] *= scale;
+    } else {
+      // Nothing overlapped (an extreme change of shape): spread it evenly.
+      d.fill(total / (this.width * this.depth * this.length));
+    }
+  }
+
   /** Trilinear dye sample at a world position (L/m^3). */
   sample(x: number, y: number, z: number) {
     const { nx, ny, nz, d } = this;

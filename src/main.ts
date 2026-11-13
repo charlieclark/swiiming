@@ -110,13 +110,14 @@ function resetWater() {
   fluid.configure(dims.width, dims.depth, dims.length);
 }
 
+/** Apply `dims` everywhere. The urine already in the water is carried over. */
 function configure(snap: boolean, reframe = true) {
   ripples.configure(dims);
   tank.configure(dims);
   surface.configure(dims);
   volume.configure(dims);
   swimmers.configure(dims);
-  fluid.configure(dims.width, dims.depth, dims.length);
+  fluid.configure(dims.width, dims.depth, dims.length, true);
   stage.configure(dims, snap, reframe);
   ui.setCount(swimmers.count, swimmers.capacity);
 }
@@ -360,7 +361,7 @@ function frame(now: number) {
   volume.update(stage.camera, stage.sceneColor, stage.sceneDepth, stage.resolution, time);
   stage.render();
   const portrait = swimmers.selected ? ui.portraitRect() : null;
-  if (portrait && swimmers.selected) stage.renderPortrait(portrait, swimmers.selected.headMatrix);
+  if (portrait && swimmers.selected) stage.renderPortrait(portrait, swimmers.selected.headMatrix, tank.opaque);
   ui.updateLabels(stage, tank, dims);
 
   requestAnimationFrame(frame);

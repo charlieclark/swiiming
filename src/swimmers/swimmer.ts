@@ -70,6 +70,9 @@ export class Swimmer {
   flowNow = 0;
   /** Lifetime total, litres. */
   released = 0;
+  /** How long the current (or most recent) pee has lasted, in simulated seconds. */
+  peeSeconds = 0;
+  private wasPeeing = false;
   /** Litres released but not yet handed to the solver. */
   pending = 0;
 
@@ -82,6 +85,8 @@ export class Swimmer {
 
   /** Free radius around the swimmer (m), set by the manager each frame. */
   space = 1;
+  /** Depth of the water they are in (m), set by the manager. */
+  depth = 2.4;
   /** How active the swimmer is at the surface right now (drives ripples). */
   splash = 0;
 
@@ -95,6 +100,8 @@ export class Swimmer {
   private pupils: THREE.Object3D[] = [];
   private brows: THREE.Object3D[] = [];
   private mouth: THREE.Object3D;
+  /** Upturned corners of the mouth, shown only when smiling. */
+  private smile: THREE.Object3D[] = [];
   private skull: THREE.Object3D;
   private pelvis: THREE.Object3D;
   private seed = Math.random() * 100;
@@ -201,6 +208,11 @@ export class Swimmer {
     }
     part(this.head, Shape.Bead, skin, 0, cy - 0.024, cz + 0.111, 0.014, 0.022, 0.017);
     this.mouth = part(this.head, Shape.Bead, MOUTH, 0, cy - 0.064, cz + 0.091, MOUTH_W, MOUTH_H, 0.012);
+    for (let side = -1; side <= 1; side += 2) {
+      const corner = part(this.head, Shape.Bead, MOUTH, 0.031 * side, cy - 0.0575, cz + 0.087, 0, 0, 0);
+      corner.rotation.z = side * 0.72;
+      this.smile.push(corner);
+    }
 
     // Arms
     for (let side = -1; side <= 1; side += 2) {
@@ -241,7 +253,9 @@ export class Swimmer {
 
   /** Short description of what the swimmer is doing. */
   get status() {
-    const base = this.mood === 'exposed' ? 'Panicking' : 'Treading water';
+    const rel = this.depth / this.look.height;
+    const posture = rel < 0.72 ? 'Sitting' : rel < 1.5 ? 'Standing' : 'Treading water';
+    const base = this.mood === 'exposed' ? 'Panicking' : posture;
     return this.peeing ? `${base}, peeing` : base;
   }
 
@@ -282,6 +296,11 @@ export class Swimmer {
     this.flowNow = approach(this.flowNow, this.peeing && !this.removing ? this.look.flow : 0, 1.6, dt);
     if (this.flowNow < 1e-5) this.flowNow = 0;
     const q = this.flowNow * dt * timeScale;
+    if (this.peeing) {
+      if (!this.wasPeeing) this.peeSeconds = 0;
+      this.peeSeconds += dt * timeScale;
+    }
+    this.wasPeeing = this.peeing;
     this.released += q;
     this.pending += q;
 
@@ -323,10 +342,11 @@ export class Swimmer {
     p[PITCH] = 0.07;
     p[RISE] = 0.012 * Math.sin(ph * 2) * (1 - 0.5 * this.relief);
     p[ROLL] = 0.028 * Math.sin(ph);
-    p[HEAD_PITCH] = -0.07 - 0.2 * this.relief;
+    // Bliss: head tipped back and to one side, swaying slowly.
+    p[HEAD_PITCH] = -0.07 - (0.3 + 0.04 * Math.sin(t * 0.9)) * this.relief;
     // Idle glances; while peeing, a studied look at nothing in particular.
     const idle = 0.3 * Math.sin(t * 0.37) + 0.16 * Math.sin(t * 0.83 + 1.7);
-    const away = 0.55 * (this.seed > 50 ? 1 : -1) + 0.08 * Math.sin(t * 0.5);
+    const away = 0.22 * (this.seed > 50 ? 1 : -1) + 0.1 * Math.sin(t * 0.45);
     p[HEAD_YAW] = idle * (1 - this.relief) + away * this.relief;
     p[SHIFT] = 0;
     const raise = 0.42 + (1.3 - 0.42) * k - 0.1 * this.lift;
@@ -381,6 +401,40 @@ export class Swimmer {
     }
   }
 
+  /**
+   * Water too shallow to tread in: put the feet on the bottom. Down to neck-deep the
+   * swimmer crouches so the water stays at their neck; shallower than that they sit on
+   * the floor with knees up, and the body rises out of the water.
+   */
+  private touchBottom(p: Float32Array) {
+    const rel = this.depth / this.look.height; // depth in body-sized units
+    const t = Math.max(0, Math.min(1, (1.68 - rel) / 0.18));
+    const grounded = t * t * (3 - 2 * t);
+    if (grounded <= 0.001) return;
+    // Hips are 0.64 below the neck and a straight leg reaches a further 0.86.
+    const fold = Math.acos(Math.max(-0.77, Math.min(1, (rel - 1.1) / 0.4)));
+    const seated = Math.max(0, 0.72 - rel);
+    const u = Math.max(0, Math.min(1, seated / 0.25));
+    const armsDown = u * u * (3 - 2 * u);
+    p[RISE] += seated * grounded;
+    for (let i = 0; i < 2; i++) {
+      const side = i === 0 ? -1 : 1;
+      const l = LEG[i];
+      p[l] += (-fold - p[l]) * grounded;
+      p[l + 1] += (side * 0.14 - p[l + 1]) * grounded;
+      p[l + 2] += (Math.max(0, fold - 0.1) - p[l + 2]) * grounded;
+      p[l + 3] += (0 - p[l + 3]) * grounded;
+      p[l + 4] += (0.1 - p[l + 4]) * grounded;
+      // Out of the water there is nothing to scull: arms rest at the sides.
+      const a = ARM[i];
+      p[a] += (0.1 - p[a]) * armsDown;
+      p[a + 1] += (0 - p[a + 1]) * armsDown;
+      p[a + 2] += (side * 0.22 - p[a + 2]) * armsDown;
+      p[a + 3] += (-0.5 - p[a + 3]) * armsDown;
+      p[a + 4] += (0 - p[a + 4]) * armsDown;
+    }
+  }
+
   private blend(weight: number) {
     if (weight <= 0.001) return;
     const p = this.pose;
@@ -396,6 +450,8 @@ export class Swimmer {
       this.fillPanic(scratch, time, k);
       this.blend(this.wPanic);
     }
+    this.touchBottom(p);
+
     // Whole body
     const drop = (1 - this.spawn) * (1 - this.spawn);
     const sink = this.landed ? 0.05 * Math.exp(-this.landT * 4) * Math.cos(this.landT * 9) : 0;
@@ -411,7 +467,8 @@ export class Swimmer {
     );
     this.body.rotation.set(p[PITCH] + lean, 0, p[ROLL]);
     this.lookYaw = approach(this.lookYaw, p[HEAD_YAW], this.wPanic > 0.5 ? 12 : 2.5, dt);
-    this.headPivot.rotation.set(p[HEAD_PITCH] - lean, this.lookYaw, -p[ROLL]);
+    const tilt = (0.13 * (this.seed > 50 ? -1 : 1) + 0.05 * Math.sin((time + this.seed) * 0.6)) * this.relief;
+    this.headPivot.rotation.set(p[HEAD_PITCH] - lean, this.lookYaw, -p[ROLL] + tilt);
 
     for (let i = 0; i < 2; i++) {
       const arm = this.arms[i];
@@ -430,23 +487,28 @@ export class Swimmer {
     const panic = this.panicFace;
     const relief = this.relief;
     const blink = panic < 0.5 && Math.sin(t * 0.9) > 0.995 ? 0.12 : 1;
-    const open = Math.max(0.1, (1 - 0.55 * relief + 0.32 * panic) * blink);
+    const open = Math.max(0.1, (1 + 0.32 * panic) * blink);
     const pupil = 0.0105 * (1 - 0.18 * panic);
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
-      this.whites[i].scale.set(0.02 * (1 + 0.12 * panic), 0.016 * open, 0.008);
-      this.pupils[i].scale.set(pupil, Math.min(pupil, 0.015 * open), 0.005);
+      // Peeing: eyes close into contented lines that slope down at the outer ends.
+      this.whites[i].scale.set(0.02 * (1 + 0.12 * panic), 0.016 * open * (1 - relief), 0.008);
+      const lid = this.pupils[i];
+      lid.scale.set(pupil + (0.018 - pupil) * relief, Math.min(pupil, 0.015 * open) * (1 - relief) + 0.0028 * relief, 0.005);
+      lid.rotation.z = -side * 0.3 * relief;
       const brow = this.brows[i];
-      brow.position.y = HEAD_Y + BROW_Y + 0.008 * relief + 0.01 * panic;
-      brow.rotation.z = -side * (0.38 * panic - 0.1 * relief);
+      brow.position.y = HEAD_Y + BROW_Y + 0.013 * relief + 0.01 * panic;
+      brow.rotation.z = -side * (0.38 * panic + 0.14 * relief);
     }
+    // Mouth: a wide closed smile when peeing, an open "o" when panicking.
     const scream = 0.85 + 0.15 * Math.sin(t * 5);
     this.mouth.scale.set(
-      MOUTH_W * (1 - 0.5 * relief + 0.1 * panic),
-      MOUTH_H * (1 + 2.0 * relief + 3.6 * panic * scream),
+      MOUTH_W * (1 + 0.12 * relief + 0.1 * panic),
+      MOUTH_H * (1 - 0.1 * relief + 3.6 * panic * scream),
       0.012,
     );
     this.mouth.position.y = HEAD_Y - 0.064 - 0.006 * panic;
+    for (const corner of this.smile) corner.scale.set(0.0115 * relief, MOUTH_H * 0.95 * relief, 0.011 * relief);
 
     this.root.updateMatrix();
     this.root.matrixWorld.copy(this.root.matrix);
