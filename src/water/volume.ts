@@ -154,9 +154,9 @@ export class WaterVolume {
             // Anything under water takes on a cooler cast straight away, so a body changes
             // colour where it enters the water...
             bg *= mix(vec3(1.0), vec3(0.6, 0.85, 0.96), smoothstep(0.0, 0.06, below));
-            // ...and a thin bright line marks exactly where it meets the surface.
-            float meniscus = 1.0 - smoothstep(0.004, 0.045, below);
-            bg = mix(bg, vec3(1.25), meniscus * 0.75);
+            // ...and a faint highlight sits right where it meets the surface.
+            float meniscus = 1.0 - smoothstep(0.002, 0.018, below);
+            bg = mix(bg, vec3(1.1), meniscus * 0.28);
           }
 
           // Looking up at the underside of the surface: mostly a mirror outside Snell's window.

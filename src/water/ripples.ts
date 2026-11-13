@@ -194,7 +194,7 @@ export class Ripples {
       this.dropCount = 0;
       return;
     }
-    this.acc = Math.min(this.acc + dt, 3 / STEP_HZ);
+    this.acc = Math.min(this.acc + dt, 4 / STEP_HZ);
     const r = this.renderer;
     const prev = r.getRenderTarget();
     const autoClear = r.autoClear;

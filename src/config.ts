@@ -20,9 +20,9 @@ export const GLASS_THICKNESS = 0.04;
 export const SLAB_THICKNESS = 0.22;
 
 /** Closest two swimmers may be, centre to centre, with arms tucked in (m). */
-export const SPACING = 0.92;
+export const SPACING = 0.78;
 /** Closest a swimmer's centre may be to a wall (m). */
-export const WALL_MARGIN = 0.5;
+export const WALL_MARGIN = 0.4;
 
 /** Hexagonal packing of swimmer positions inside the walls, at a given spacing. */
 export function packedSlots(dims: TankDims, spacing = SPACING): [number, number][] {
@@ -55,9 +55,12 @@ export function capacity(dims: TankDims) {
  */
 export const REFERENCE_PPM = (75 / 830000) * 1e6;
 
-/** Local concentration (L/m^3) at which a swimmer notices. 1 L/m^3 == 1000 ppm. */
-export const EXPOSURE_ON = 0.02;
-export const EXPOSURE_OFF = 0.009;
+/**
+ * Swimmers panic when the water at their face is worse than that public pool, and calm
+ * down once it is comfortably back under. In L/m^3 (1 L/m^3 == 1000 ppm).
+ */
+export const EXPOSURE_ON = REFERENCE_PPM / 1000;
+export const EXPOSURE_OFF = EXPOSURE_ON * 0.6;
 
 export interface Quality {
   mobile: boolean;

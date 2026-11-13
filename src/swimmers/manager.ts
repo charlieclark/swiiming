@@ -163,6 +163,14 @@ export class SwimmerManager {
     while (this.swimmers.length > n) this.remove();
   }
 
+  /** Cut every release off at once (used when the pool is drained). */
+  stopAll() {
+    for (const s of this.swimmers) {
+      s.peeing = false;
+      s.flowNow = 0;
+    }
+  }
+
   setAllPeeing(on: boolean) {
     for (const s of this.swimmers) s.peeing = on;
   }
@@ -337,10 +345,10 @@ export class SwimmerManager {
     }
   }
 
-  update(dt: number, time: number) {
+  update(dt: number, time: number, timeScale = 1) {
     for (const s of this.swimmers) {
       const wasAirborne = s.spawn < 1;
-      this.totalReleased += s.update(dt, time);
+      this.totalReleased += s.update(dt, time, timeScale);
       if (wasAirborne && s.spawn >= 1 && !s.landed) {
         s.markLanded();
         this.ripples.addDrop(s.x, s.z, 0.5, -0.05);
@@ -351,13 +359,16 @@ export class SwimmerManager {
 
     this.batch.begin();
     const hand = this.tmp3;
+    const rate = Math.min(dt, 0.05) * 60;
     for (const s of this.swimmers) {
       s.measureVelocity(dt);
       s.applyPose(dt, time);
       s.emit(this.batch);
       if (s.spawn < 1) continue;
 
-      // Ripples: sculling hands, the bobbing body, a wake when moving, splashes when thrashing.
+      // Ripples: sculling hands, the bobbing body, a wake when dragged, splashes when
+      // thrashing. Amounts are per 1/60 s, scaled by `rate` so they do not depend on the
+      // display's frame rate.
       const speed = Math.hypot(s.vx, s.vz);
       const calm = Math.max(0, 1 - s.splash);
       const pulse = Math.cos(s.phase);
@@ -365,21 +376,25 @@ export class SwimmerManager {
         s.handPosition(i, hand);
         if (hand.y < -0.45) continue;
         const side = i === 0 ? -1 : 1;
-        const strength =
-          0.0016 * s.vigor * calm * pulse * side + s.splash * 0.02 * (Math.random() - 0.5) * (hand.y > -0.12 ? 2 : 1);
-        this.ripples.addDrop(hand.x, hand.z, 0.17, strength, hand.y > -0.1 ? 0.07 + 0.2 * s.splash : 0);
+        const strength = 0.0016 * s.vigor * calm * pulse * side + s.splash * 0.011 * (Math.random() - 0.5);
+        this.ripples.addDrop(hand.x, hand.z, 0.17, strength * rate, hand.y > -0.1 ? 0.035 * s.splash * rate : 0);
       }
       s.headPosition(hand);
-      // The neck is where the body meets the surface: a collar of foam marks the waterline.
+      // A faint collar of foam where the neck meets the surface.
       this.ripples.addDrop(
         hand.x,
         hand.z,
-        (0.33 + 0.12 * s.splash) * s.look.height,
-        (0.0009 + 0.0022 * s.splash) * Math.sin(s.phase * 2) * (0.4 + s.vigor),
-        0.26 + 0.2 * s.splash,
+        (0.25 + 0.06 * s.splash) * s.look.height,
+        (0.0009 + 0.0014 * s.splash) * Math.sin(s.phase * 2) * (0.4 + s.vigor) * rate,
+        (0.1 + 0.05 * s.splash) * rate,
       );
       if (speed > 0.12) {
-        this.ripples.addDrop(hand.x + (s.vx / speed) * 0.22, hand.z + (s.vz / speed) * 0.22, 0.3, Math.min(0.014, speed * 0.008));
+        this.ripples.addDrop(
+          hand.x + (s.vx / speed) * 0.22,
+          hand.z + (s.vz / speed) * 0.22,
+          0.3,
+          Math.min(0.014, speed * 0.008) * rate,
+        );
       }
     }
     for (let i = this.leaving.length - 1; i >= 0; i--) {

@@ -2,6 +2,8 @@ import { chooseGrid, SUBJECT_STRIDE, type GridDims } from './fluid';
 import type { FrameMessage, ToWorker } from './worker';
 
 export const SIM_DT = 1 / 30;
+/** When time is sped up and the solver cannot keep pace, steps stretch up to this long. */
+const MAX_STEP = SIM_DT * 4;
 
 export interface SolverInput {
   count: number;
@@ -47,22 +49,24 @@ export class FluidClient {
     return this.grid;
   }
 
-  /** Call every frame with elapsed time. */
+  /** Call every frame with elapsed simulated time (already scaled by any speed-up). */
   update(dt: number) {
-    this.acc = Math.min(this.acc + dt, SIM_DT * 4);
+    this.acc = Math.min(this.acc + dt, MAX_STEP * 3);
     this.dispatch();
   }
 
   private dispatch() {
     if (this.busy || this.acc < SIM_DT) return;
-    this.acc -= SIM_DT;
+    // Normally one fixed step; a backlog (fast-forward) is worked off with longer steps.
+    const stepDt = Math.min(MAX_STEP, this.acc > SIM_DT * 2 ? this.acc : SIM_DT);
+    this.acc -= stepDt;
     const input = this.source();
     const subjects = new Float32Array(Math.max(1, input.count) * SUBJECT_STRIDE);
     input.fill(subjects);
     const msg: ToWorker = {
       type: 'step',
       gen: this.gen,
-      dt: SIM_DT,
+      dt: stepDt,
       subjects,
       count: input.count,
       expectedLitres: input.expectedLitres,

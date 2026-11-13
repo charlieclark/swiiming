@@ -30,13 +30,15 @@ npm run build
   flow rate, and the concentration of the water around them. The card has its own Pee button.
 - **Drag a swimmer** (anywhere on the body) to move them. Drag empty space to orbit, scroll or pinch to zoom.
 - **Simultaneous release** (or the space bar): everyone pees until you press it again.
+- **Speed**: 1x to 10x. Speeds up the release and the movement of the water; swimmers keep their normal pace.
 - **Drain and refill**: fresh water, everyone stops.
 
 ## What the swimmers do
 
 - Tread water, with arms tucked in when they are crowded or near a wall.
 - Look relaxed while peeing, and ignore the water around them until they stop.
-- Panic on the spot when the water at their face goes bad, and keep panicking until it clears.
+- Panic on the spot when the water at their face is worse than a typical public pool (about 90 ppm), and
+  keep going until it drops back under.
 
 ## What is simulated
 
@@ -49,7 +51,7 @@ npm run build
   and dye, refraction through the rippling surface, and a mirrored underside when viewed from below.
   Swimmers are drawn with five instanced meshes, so a hundred cost the same draw calls as one.
 - **Readout**: the pool-average concentration assumes a well-mixed pool that overflows as liquid is added.
-  The reference mark on the meter is the roughly 90 ppm implied by Blackstock et al., *Environ. Sci.
+  The meter is linear, from zero to twice the public pool figure. That figure is the roughly 90 ppm implied by Blackstock et al., *Environ. Sci.
   Technol. Lett.* 2017, 4, 149-153, who estimated 75 L of urine in a 220,000 US gallon public pool.
 
 The one liberty taken is the colour. At realistic concentrations urine is invisible in a pool, so the dye
