@@ -2,7 +2,6 @@
 
 export type Headwear = 'cap' | 'short' | 'bald' | 'bun' | 'long';
 export type Suit = 'trunks' | 'briefs' | 'jammers' | 'onepiece' | 'twopiece' | 'rashguard';
-export type Facial = 'none' | 'moustache' | 'beard';
 
 export interface Look {
   /** Overall scale; 1.0 is 1.78 m tall. */
@@ -20,7 +19,6 @@ export interface Look {
   suitColor: number;
   suitColor2: number;
   goggles: boolean;
-  facial: Facial;
   /** Peak flow rate, litres per second. */
   flow: number;
 }
@@ -34,6 +32,11 @@ const SUITS = [
   0x1c2f52, 0x15181d, 0x7a1f2b, 0x0f5a5e, 0x3b2a63, 0x2a4d2e, 0xc2452d, 0x1b6fa8, 0x8a8f96, 0xb0326b, 0xd08a1e,
   0x2c2c6e,
 ];
+
+/** Perceived brightness of a 0xRRGGBB colour, 0 to 1. */
+function luma(hex: number) {
+  return (((hex >> 16) & 255) * 0.299 + ((hex >> 8) & 255) * 0.587 + (hex & 255) * 0.114) / 255;
+}
 
 function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -66,7 +69,11 @@ export function makeLook(id: number): Look {
   const bell = () => r() + r() - 1;
 
   const feminineCut = r() < 0.5;
-  const hair = pick(HAIR);
+  const skin = pick(SKIN);
+  // Hair that nearly matches the skin reads as a bald scalp, so swap in near-black or
+  // grey when the two are too close in brightness.
+  let hair = pick(HAIR);
+  if (Math.abs(luma(hair) - luma(skin)) < 0.16) hair = Math.abs(luma(0x17120f) - luma(skin)) >= 0.16 ? 0x17120f : 0x8c8c8c;
   const headwear = weighted<Headwear>(
     feminineCut
       ? [['cap', 5], ['bun', 2.5], ['long', 2.5], ['short', 1]]
@@ -84,7 +91,7 @@ export function makeLook(id: number): Look {
     shoulders: 1 + bell() * 0.07 + (feminineCut ? -0.03 : 0.03),
     headWidth: 1 + bell() * 0.05,
     headHeight: 1 + bell() * 0.06,
-    skin: pick(SKIN),
+    skin,
     hair,
     headwear,
     capColor: pick(CAPS),
@@ -92,7 +99,6 @@ export function makeLook(id: number): Look {
     suitColor: pick(SUITS),
     suitColor2: pick(SUITS),
     goggles: r() < 0.22 && headwear !== 'bald',
-    facial: feminineCut ? 'none' : weighted<Facial>([['none', 7], ['moustache', 1], ['beard', 1.5]]),
     flow: 0.02 + r() * 0.014,
   };
 }

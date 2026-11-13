@@ -199,8 +199,6 @@ export class Swimmer {
     }
     part(this.head, Shape.Bead, skin, 0, cy - 0.024, cz + 0.111, 0.014, 0.022, 0.017);
     this.mouth = part(this.head, Shape.Bead, MOUTH, 0, cy - 0.064, cz + 0.091, MOUTH_W, MOUTH_H, 0.012);
-    if (look.facial === 'moustache') part(this.head, Shape.Box, hair, 0, cy - 0.046, cz + 0.103, 0.05, 0.011, 0.012);
-    if (look.facial === 'beard') part(this.head, Shape.Sphere, hair, 0, cy - 0.094, cz + 0.045, 0.078, 0.046, 0.06);
 
     // Arms
     for (let side = -1; side <= 1; side += 2) {
