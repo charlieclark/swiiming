@@ -20,6 +20,8 @@ export class SwimmerManager {
   dragging: Swimmer | null = null;
   selected: Swimmer | null = null;
   capacity = 1;
+  /** Distance from the camera to the swimmer found by the last successful pick(). */
+  pickDistance = Infinity;
 
   private leaving: Swimmer[] = [];
   private dims: TankDims = { width: 1, length: 1, depth: 2 };
@@ -81,8 +83,6 @@ export class SwimmerManager {
       s.pending = 0;
       s.exposure = 0;
       s.exposedFor = 0;
-      s.stress = 0;
-      s.escapeX = s.escapeZ = 0;
     }
   }
 
@@ -251,6 +251,7 @@ export class SwimmerManager {
         best = s;
       }
     }
+    this.pickDistance = bestDist;
     return best;
   }
 
@@ -363,11 +364,11 @@ export class SwimmerManager {
         if (hand.y < -0.45) continue;
         const side = i === 0 ? -1 : 1;
         const strength =
-          0.0042 * s.vigor * calm * pulse * side + s.splash * 0.02 * (Math.random() - 0.5) * (hand.y > -0.12 ? 2 : 1);
+          0.0016 * s.vigor * calm * pulse * side + s.splash * 0.02 * (Math.random() - 0.5) * (hand.y > -0.12 ? 2 : 1);
         this.ripples.addDrop(hand.x, hand.z, 0.17, strength);
       }
       s.headPosition(hand);
-      this.ripples.addDrop(hand.x, hand.z, 0.3, 0.0028 * Math.sin(s.phase * 2) * (0.4 + s.vigor));
+      this.ripples.addDrop(hand.x, hand.z, 0.3, (0.0009 + 0.0022 * s.splash) * Math.sin(s.phase * 2) * (0.4 + s.vigor));
       if (speed > 0.12) {
         this.ripples.addDrop(hand.x + (s.vx / speed) * 0.22, hand.z + (s.vz / speed) * 0.22, 0.3, Math.min(0.014, speed * 0.008));
       }
@@ -393,7 +394,7 @@ export class SwimmerManager {
     this.ring.visible = mat.opacity > 0.01;
   }
 
-  /** Fraction of swimmers thrashing or fleeing, for sound. */
+  /** Roughly how many swimmers are thrashing, for sound. */
   get commotion() {
     let sum = 0;
     for (const s of this.swimmers) sum += s.splash;
@@ -422,7 +423,7 @@ export class SwimmerManager {
     });
   }
 
-  applySolverResults(exposure: Float32Array, escape: Float32Array) {
+  applySolverResults(exposure: Float32Array) {
     const byId = new Map<number, Swimmer>();
     for (const s of this.swimmers) byId.set(s.id, s);
     const n = Math.min(exposure.length, this.sentIds.length);
@@ -430,8 +431,6 @@ export class SwimmerManager {
       const s = byId.get(this.sentIds[i]);
       if (!s) continue;
       s.exposure = exposure[i];
-      s.escapeX = escape[i * 2];
-      s.escapeZ = escape[i * 2 + 1];
     }
   }
 }

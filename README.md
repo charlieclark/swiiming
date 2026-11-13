@@ -22,7 +22,8 @@ npm run build
 
 ## Controls
 
-- **Pool sliders**: width, length and depth. Changing them replaces the water.
+- **Pool size**: use the sliders, or drag the pool itself. The top edges change width and length, the base
+  changes depth. Resizing replaces the water.
 - **Swimmers**: up to 100, or fewer if the pool is too small to hold them. **Spread evenly** sends everyone
   to an evenly spaced spot.
 - **Click a swimmer** to open their card: a live view of their face, how much they have released, their
@@ -35,14 +36,13 @@ npm run build
 
 - Tread water, with arms tucked in when they are crowded or near a wall.
 - Look relaxed while peeing, and ignore the water around them until they stop.
-- Panic when the water at their face goes bad, and swim toward cleaner water if there is any nearby.
-- Give up after enough time in bad water: they float on their back (or just hang there if there is no room).
+- Panic on the spot when the water at their face goes bad, and keep panicking until it clears.
 
 ## What is simulated
 
 - **Dye transport**: a 3D stable-fluids solver (`src/sim/fluid.ts`) running in a Web Worker. Velocity is
   self-advected and pressure-projected; dye uses MacCormack advection so filaments stay sharp. Treading
-  legs, sculling arms and moving swimmers stir the water.
+  legs, sculling arms and moving swimmers stir the water; panicking swimmers stir it harder.
 - **Surface**: a GPU heightfield ripple simulation (`src/water/ripples.ts`). Swimmers disturb it with their
   hands and bodies, and it drives part of the caustic light on the floor.
 - **Rendering**: the water body is raymarched (`src/water/volume.ts`) with per-channel absorption for water

@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { EXPOSURE_OFF, EXPOSURE_ON, RESIGNATION_SECONDS } from '../config';
+import { EXPOSURE_OFF, EXPOSURE_ON } from '../config';
 import { CAPSULE_LENGTH, Shape, type SwimmerBatch } from './batch';
 import { BASE_HEIGHT_M, makeLook, type Look } from './look';
 
-export type Mood = 'calm' | 'exposed' | 'resigned';
+export type Mood = 'calm' | 'exposed';
 
 interface Part {
   node: THREE.Object3D;
@@ -83,12 +83,7 @@ export class Swimmer {
   mood: Mood = 'calm';
   /** Local concentration, L/m^3. */
   exposure = 0;
-  escapeX = 0;
-  escapeZ = 0;
   exposedFor = 0;
-  /** Accumulated time in bad water, decaying slowly in clean water. */
-  stress = 0;
-  private givenUp = false;
   private clearFor = 0;
 
   /** Free radius around the swimmer (m), set by the manager each frame. */
@@ -114,16 +109,12 @@ export class Swimmer {
   // Autonomous swimming velocity.
   private ax = 0;
   private az = 0;
-  private fleeX = 0;
-  private fleeZ = 0;
   private prevX = 0;
   private prevZ = 0;
 
   // Blend weights.
   private wSwim = 0;
   private wPanic = 0;
-  private wFloat = 0;
-  private wSlump = 0;
   private panicFace = 0;
   private relief = 0;
   private lift = 0;
@@ -262,16 +253,7 @@ export class Swimmer {
 
   /** Short description of what the swimmer is doing. */
   get status() {
-    const base =
-      this.mood === 'resigned'
-        ? 'Given up'
-        : this.mood === 'exposed'
-          ? this.wSwim > 0.5
-            ? 'Fleeing'
-            : 'Panicking'
-          : this.goalX !== null
-            ? 'Swimming'
-            : 'Treading water';
+    const base = this.mood === 'exposed' ? 'Panicking' : this.goalX !== null ? 'Swimming' : 'Treading water';
     return this.peeing ? `${base}, peeing` : base;
   }
 
@@ -289,18 +271,12 @@ export class Swimmer {
     if (exposedNow) {
       this.exposedFor += dt;
       this.clearFor = 0;
-      // Stress builds while in bad water and fades only slowly, so a swimmer who keeps
-      // getting caught eventually stops trying.
-      this.stress = Math.min(RESIGNATION_SECONDS + 4, this.stress + dt);
     } else {
       this.clearFor += dt;
       if (this.clearFor > 0.7 || oblivious) this.exposedFor = 0;
-      this.stress = Math.max(0, this.stress - dt * 0.3);
     }
-    if (oblivious) this.givenUp = false;
-    else if (this.stress >= RESIGNATION_SECONDS) this.givenUp = true;
-    else if (this.stress < RESIGNATION_SECONDS * 0.6) this.givenUp = false;
-    this.mood = this.givenUp ? 'resigned' : this.exposedFor > 0 ? 'exposed' : 'calm';
+    // Panic lasts exactly as long as the water around them is contaminated.
+    this.mood = this.exposedFor > 0 ? 'exposed' : 'calm';
 
     // Decide where to go.
     this.prevX = this.x;
@@ -324,17 +300,6 @@ export class Swimmer {
           wantX = (dx / dist) * speed;
           wantZ = (dz / dist) * speed;
         }
-      } else if (this.mood === 'exposed') {
-        // Head for cleaner water, if the solver found any nearby.
-        this.fleeX = approach(this.fleeX, this.escapeX, 3, dt);
-        this.fleeZ = approach(this.fleeZ, this.escapeZ, 3, dt);
-        const len = Math.hypot(this.fleeX, this.fleeZ);
-        if (len > 0.3) {
-          wantX = (this.fleeX / len) * 0.62;
-          wantZ = (this.fleeZ / len) * 0.62;
-        }
-      } else {
-        this.fleeX = this.fleeZ = 0;
       }
       this.ax = approach(this.ax, wantX, 2.6, dt);
       this.az = approach(this.az, wantZ, 2.6, dt);
@@ -349,33 +314,25 @@ export class Swimmer {
     this.released += q;
     this.pending += q;
 
-    // Blend weights
+    // Blend weights. Swimming is only used to travel to a spot (spreading out).
     const autoSpeed = Math.hypot(this.ax, this.az);
     const swimming = this.grabbed ? 0 : smoothstep(0.1, 0.32, autoSpeed);
-    const resigned = this.mood === 'resigned';
     const exposed = this.mood === 'exposed';
-    const room = smoothstep(0.62, 0.8, this.space / this.look.height);
-    this.wSwim = approach(this.wSwim, resigned ? 0 : swimming, 4, dt);
+    this.wSwim = approach(this.wSwim, swimming, 4, dt);
     this.wPanic = approach(this.wPanic, exposed ? 1 - swimming : 0, 4, dt);
-    this.wFloat = approach(this.wFloat, resigned ? room : 0, 1.3, dt);
-    this.wSlump = approach(this.wSlump, resigned ? 1 - room : 0, 1.6, dt);
     this.panicFace = approach(this.panicFace, exposed ? 1 : 0, 6, dt);
-    this.relief = approach(this.relief, this.peeing && this.mood === 'calm' ? 1 : 0, 3, dt);
+    this.relief = approach(this.relief, this.peeing && !exposed ? 1 : 0, 3, dt);
     this.lift = approach(this.lift, this.grabbed ? 1 : 0, 8, dt);
     this.reach = approach(this.reach, Math.max(0.42, Math.min(0.8, this.space / this.look.height)), 5, dt);
 
-    const still = 1 - 0.85 * this.wFloat - 0.6 * this.wSlump;
-    const hz =
-      (1.05 * (1 - 0.4 * this.relief) * (1 + 0.95 * this.wPanic + (0.2 + 0.5 * this.panicFace) * this.wSwim) + 0.5 * this.lift) * still;
+    const hz = 1.05 * (1 - 0.4 * this.relief) * (1 + 0.95 * this.wPanic + 0.2 * this.wSwim) + 0.5 * this.lift;
     this.phase += dt * Math.PI * 2 * hz;
-    this.vigor =
-      this.spawn < 1 ? 0 : (1 - 0.4 * this.relief + 0.8 * this.wPanic) * (1 - 0.9 * this.wFloat - 0.7 * this.wSlump) * (1 - 0.6 * this.wSwim);
-    this.splash = this.wPanic * 1.0 + this.wSwim * (0.45 + 0.4 * this.panicFace);
+    this.vigor = this.spawn < 1 ? 0 : (1 - 0.4 * this.relief + 0.8 * this.wPanic) * (1 - 0.6 * this.wSwim);
+    this.splash = this.wPanic + this.wSwim * 0.45;
 
-    // Face the way we are going; floaters turn slowly with the water.
+    // Face the way we are going.
     if (!this.grabbed && autoSpeed > 0.12) this.turnToward(Math.atan2(this.ax, this.az), 5, dt);
     else if (this.grabbed && Math.hypot(this.vx, this.vz) > 0.35) this.turnToward(Math.atan2(this.vx, this.vz), 4, dt);
-    this.facing += dt * 0.07 * this.wFloat * (this.seed > 50 ? 1 : -1);
     void time;
     return q;
   }
@@ -429,7 +386,7 @@ export class Swimmer {
     }
   }
 
-  /** Head-up front crawl, used both for calm travel and for fleeing. */
+  /** Head-up front crawl, used to travel to a new spot. */
   private fillSwim(p: Float32Array) {
     const ph = this.phase;
     p[PITCH] = 1.1;
@@ -486,59 +443,6 @@ export class Swimmer {
     }
   }
 
-  /** Flat on the back, arms out, looking at the ceiling. */
-  private fillFloat(p: Float32Array) {
-    const ph = this.phase;
-    p[PITCH] = -1.5;
-    p[RISE] = -0.055 + 0.012 * Math.sin(ph * 2);
-    p[ROLL] = 0.03 * Math.sin(ph);
-    p[HEAD_PITCH] = 0.1;
-    p[HEAD_YAW] = 0;
-    p[SHIFT] = -0.62;
-    for (let i = 0; i < 2; i++) {
-      const side = i === 0 ? -1 : 1;
-      const a = ARM[i];
-      p[a] = 0;
-      p[a + 1] = 0;
-      p[a + 2] = side * (1.5 + 0.03 * Math.sin(ph + side));
-      p[a + 3] = -0.15;
-      p[a + 4] = 0;
-      const l = LEG[i];
-      p[l] = -0.06;
-      p[l + 1] = side * 0.2;
-      p[l + 2] = 0.12;
-      p[l + 3] = 0;
-      p[l + 4] = 0.2;
-    }
-  }
-
-  /** No room to float: hang in the water, head bowed, arms limp. */
-  private fillSlump(p: Float32Array) {
-    const ph = this.phase;
-    p[PITCH] = 0.14;
-    p[RISE] = -0.05 + 0.008 * Math.sin(ph * 2);
-    p[ROLL] = 0.02 * Math.sin(ph);
-    p[HEAD_PITCH] = 0.42;
-    p[HEAD_YAW] = 0;
-    p[SHIFT] = 0;
-    for (let i = 0; i < 2; i++) {
-      const side = i === 0 ? -1 : 1;
-      const a = ARM[i];
-      p[a] = 0.12;
-      p[a + 1] = 0;
-      p[a + 2] = side * 0.16;
-      p[a + 3] = -0.28;
-      p[a + 4] = 0;
-      const l = LEG[i];
-      const lp = ph + (side > 0 ? 0 : Math.PI);
-      p[l] = -(0.22 + 0.06 * Math.sin(lp));
-      p[l + 1] = side * 0.12;
-      p[l + 2] = 0.5 + 0.12 * Math.sin(lp);
-      p[l + 3] = 0;
-      p[l + 4] = 0.5;
-    }
-  }
-
   private blend(weight: number) {
     if (weight <= 0.001) return;
     const p = this.pose;
@@ -559,15 +463,6 @@ export class Swimmer {
       this.fillPanic(scratch, time);
       this.blend(this.wPanic);
     }
-    if (this.wSlump > 0.001) {
-      this.fillSlump(scratch);
-      this.blend(this.wSlump);
-    }
-    if (this.wFloat > 0.001) {
-      this.fillFloat(scratch);
-      this.blend(this.wFloat);
-    }
-
     // Whole body
     const drop = (1 - this.spawn) * (1 - this.spawn);
     const sink = this.landed ? 0.05 * Math.exp(-this.landT * 4) * Math.cos(this.landT * 9) : 0;
@@ -601,22 +496,21 @@ export class Swimmer {
     const t = time + this.seed;
     const panic = this.panicFace;
     const relief = this.relief;
-    const flat = Math.min(1, this.wFloat + this.wSlump);
     const blink = panic < 0.5 && Math.sin(t * 0.9) > 0.995 ? 0.12 : 1;
-    const open = Math.max(0.1, (1 - 0.55 * relief + 0.5 * panic - 0.42 * flat) * blink);
+    const open = Math.max(0.1, (1 - 0.55 * relief + 0.5 * panic) * blink);
     const pupil = 0.0105 * (1 - 0.28 * panic);
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
       this.whites[i].scale.set(0.02 * (1 + 0.12 * panic), 0.016 * open, 0.008);
       this.pupils[i].scale.set(pupil, Math.min(pupil, 0.015 * open), 0.005);
       const brow = this.brows[i];
-      brow.position.y = HEAD_Y + BROW_Y + 0.008 * relief + 0.015 * panic - 0.005 * flat;
-      brow.rotation.z = -side * (0.5 * panic - 0.1 * relief + 0.1 * flat);
+      brow.position.y = HEAD_Y + BROW_Y + 0.008 * relief + 0.015 * panic;
+      brow.rotation.z = -side * (0.5 * panic - 0.1 * relief);
     }
     const scream = 0.78 + 0.22 * Math.sin(t * 11);
     this.mouth.scale.set(
       MOUTH_W * (1 - 0.5 * relief + 0.3 * panic),
-      MOUTH_H * (1 + 2.0 * relief + 7.5 * panic * scream - 0.2 * flat),
+      MOUTH_H * (1 + 2.0 * relief + 7.5 * panic * scream),
       0.012,
     );
     this.mouth.position.y = HEAD_Y - 0.064 - 0.012 * panic;

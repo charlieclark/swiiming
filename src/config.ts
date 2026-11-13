@@ -58,8 +58,6 @@ export const REFERENCE_PPM = (75 / 830000) * 1e6;
 /** Local concentration (L/m^3) at which a swimmer notices. 1 L/m^3 == 1000 ppm. */
 export const EXPOSURE_ON = 0.02;
 export const EXPOSURE_OFF = 0.009;
-/** Seconds of continuous exposure before a swimmer gives up. */
-export const RESIGNATION_SECONDS = 14;
 
 export interface Quality {
   mobile: boolean;

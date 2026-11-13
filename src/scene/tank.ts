@@ -5,6 +5,9 @@ import type { Ripples } from '../water/ripples';
 
 const POST = 0.09;
 
+/** A draggable part of the pool: one of the four top rails, or the base. */
+export type EdgeHandle = 'x+' | 'x-' | 'z+' | 'z-' | 'floor';
+
 /** Glass research tank: tiled floor with caustics, glass walls, steel frame. */
 export class Tank {
   readonly opaque = new THREE.Group();
@@ -22,6 +25,13 @@ export class Tank {
   private posts: THREE.Mesh[] = [];
   private rails: THREE.Mesh[] = [];
   private dimLines: THREE.LineSegments;
+  private highlight: THREE.Mesh;
+  private highlighted: EdgeHandle | null = null;
+  private dims: TankDims = { width: 1, length: 1, depth: 2 };
+  private segA = new THREE.Vector3();
+  private segB = new THREE.Vector3();
+  private onRay = new THREE.Vector3();
+  private onSeg = new THREE.Vector3();
   private tiles: THREE.CanvasTexture;
   private causticUniforms = {
     uRipple: { value: null as THREE.Texture | null },
@@ -126,11 +136,15 @@ export class Tank {
       new THREE.LineBasicMaterial({ color: 0x4a5a66, transparent: true, opacity: 0.75 }),
     );
 
-    this.opaque.add(this.floor, this.slab, ...this.posts, ...this.rails, this.dimLines);
+    this.highlight = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: 0xf2c41c }));
+    this.highlight.visible = false;
+
+    this.opaque.add(this.floor, this.slab, ...this.posts, ...this.rails, this.dimLines, this.highlight);
     this.glass.add(...this.panes);
   }
 
   configure(dims: TankDims) {
+    this.dims = dims;
     const { width: W, length: L, depth: D } = dims;
     const top = FREEBOARD;
     const height = D + top;
@@ -205,8 +219,88 @@ export class Tank {
     this.anchors.length.set(xl + 0.35, y, 0);
     this.anchors.depth.set(dx + 0.3, -D / 2, dz);
 
+    this.placeHighlight();
+
     this.causticUniforms.uTankSize.value.set(W, L);
     this.causticUniforms.uDepth.value = D;
+  }
+
+  /** End points of a handle's line in world space. Rails run along the top rim. */
+  private handleSegments(handle: EdgeHandle): [number, number, number, number, number, number][] {
+    const { width: W, length: L, depth: D } = this.dims;
+    const ox = W / 2 + GLASS_THICKNESS + POST / 2 - 0.02;
+    const oz = L / 2 + GLASS_THICKNESS + POST / 2 - 0.02;
+    const y = FREEBOARD + 0.02;
+    switch (handle) {
+      case 'x+':
+        return [[ox, y, -oz, ox, y, oz]];
+      case 'x-':
+        return [[-ox, y, -oz, -ox, y, oz]];
+      case 'z+':
+        return [[-ox, y, oz, ox, y, oz]];
+      case 'z-':
+        return [[-ox, y, -oz, ox, y, -oz]];
+      case 'floor': {
+        const sx = W / 2 + 0.25;
+        const sz = L / 2 + 0.25;
+        const sy = -D - SLAB_THICKNESS / 2;
+        return [
+          [sx, sy, -sz, sx, sy, sz],
+          [-sx, sy, -sz, -sx, sy, sz],
+          [-sx, sy, sz, sx, sy, sz],
+          [-sx, sy, -sz, sx, sy, -sz],
+        ];
+      }
+    }
+  }
+
+  /**
+   * Which draggable edge is under the pointer, if any. On a hit, `point` receives the
+   * spot on the edge that was grabbed.
+   */
+  pickEdge(ray: THREE.Ray, touch: boolean, point: THREE.Vector3): EdgeHandle | null {
+    let best: EdgeHandle | null = null;
+    let bestScore = 1;
+    for (const handle of ['x+', 'x-', 'z+', 'z-', 'floor'] as const) {
+      for (const seg of this.handleSegments(handle)) {
+        this.segA.set(seg[0], seg[1], seg[2]);
+        this.segB.set(seg[3], seg[4], seg[5]);
+        const d2 = ray.distanceSqToSegment(this.segA, this.segB, this.onRay, this.onSeg);
+        // Grab radius grows with distance so the edge is about as easy to hit at any zoom.
+        const away = this.onRay.distanceTo(ray.origin);
+        const radius = Math.max(0.09, away * (touch ? 0.022 : 0.011));
+        const score = Math.sqrt(d2) / radius;
+        if (score < bestScore) {
+          bestScore = score;
+          best = handle;
+          point.copy(this.onSeg);
+        }
+      }
+    }
+    return best;
+  }
+
+  /** Light up an edge to show it can be (or is being) dragged. */
+  setHighlight(handle: EdgeHandle | null) {
+    if (handle === this.highlighted) return;
+    this.highlighted = handle;
+    this.placeHighlight();
+  }
+
+  private placeHighlight() {
+    const handle = this.highlighted;
+    this.highlight.visible = handle !== null;
+    if (!handle) return;
+    const { width: W, length: L, depth: D } = this.dims;
+    if (handle === 'floor') {
+      this.highlight.scale.set(W + 0.56, SLAB_THICKNESS * 0.5, L + 0.56);
+      this.highlight.position.set(0, -D - SLAB_THICKNESS * 0.72, 0);
+      return;
+    }
+    const [seg] = this.handleSegments(handle);
+    const alongZ = handle === 'x+' || handle === 'x-';
+    this.highlight.scale.set(alongZ ? POST * 1.5 : W + 0.3, 0.1, alongZ ? L + 0.3 : POST * 1.5);
+    this.highlight.position.set((seg[0] + seg[3]) / 2, seg[1], (seg[2] + seg[5]) / 2);
   }
 
   update(time: number) {
