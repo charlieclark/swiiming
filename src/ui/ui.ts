@@ -268,7 +268,9 @@ export class UI {
     this.pee.classList.toggle('on', active);
     this.pee.disabled = count === 0;
     this.pee.setAttribute('aria-pressed', String(active));
-    this.peeText.set(active ? 'Stop release' : 'Simultaneous release');
+    // "Simultaneous" makes no sense for one person.
+    const alone = count === 1;
+    this.peeText.set(active ? (alone ? 'Stop peeing' : 'Stop release') : alone ? 'Pee' : 'Simultaneous release');
   }
 
   /** Show, update or hide the card for the selected swimmer. */
