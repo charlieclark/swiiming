@@ -27,6 +27,15 @@ const HEAD_Z = 0.014;
 const BROW_Y = 0.034;
 const MOUTH_W = 0.024;
 const MOUTH_H = 0.0042;
+/** Skeleton measurements, in body units (metres before the swimmer's height scale). */
+const HIP_DROP = 0.64; // neck down to the hip joints
+const LEG_BONE = 0.4; // thigh and shin are the same length
+const HEEL = 0.052; // radius of the shin's rounded end
+const FOOT_HALF = 0.03; // half the foot's thickness
+const FOOT_DROP = 0.035; // foot centre below the ankle joint...
+const FOOT_AHEAD = 0.07; // ...and in front of it, with the shin vertical
+const SEAT_HEIGHT = 0.72; // neck above the floor when sitting
+
 /** Half-width a swimmer takes up with arms fully tucked in (m). */
 const MIN_REACH = 0.37;
 
@@ -87,6 +96,8 @@ export class Swimmer {
   space = 1;
   /** Depth of the water they are in (m), set by the manager. */
   depth = 2.4;
+  /** Clear distance to the wall in the direction they face (m), set by the manager. */
+  ahead = 2;
   /** How active the swimmer is at the surface right now (drives ripples). */
   splash = 0;
 
@@ -254,7 +265,7 @@ export class Swimmer {
   /** Short description of what the swimmer is doing. */
   get status() {
     const rel = this.depth / this.look.height;
-    const posture = rel < 0.72 ? 'Sitting' : rel < 1.5 ? 'Standing' : 'Treading water';
+    const posture = rel < SEAT_HEIGHT ? 'Sitting' : rel < 1.5 ? 'Standing' : 'Treading water';
     const base = this.mood === 'exposed' ? 'Panicking' : posture;
     return this.peeing ? `${base}, peeing` : base;
   }
@@ -405,33 +416,65 @@ export class Swimmer {
    * Water too shallow to tread in: put the feet on the bottom. Down to neck-deep the
    * swimmer crouches so the water stays at their neck; shallower than that they sit on
    * the floor with knees up, and the body rises out of the water.
+   *
+   * Legs are placed with two-bone inverse kinematics so the ankles land exactly on the
+   * floor whatever the depth. Lengths are in body units (the skeleton before scaling).
    */
-  private touchBottom(p: Float32Array) {
-    const rel = this.depth / this.look.height; // depth in body-sized units
-    const t = Math.max(0, Math.min(1, (1.68 - rel) / 0.18));
+  private touchBottom(p: Float32Array, time: number) {
+    const rel = this.depth / this.look.height;
+    const t = Math.max(0, Math.min(1, (1.76 - rel) / 0.2));
     const grounded = t * t * (3 - 2 * t);
     if (grounded <= 0.001) return;
-    // Hips are 0.64 below the neck and a straight leg reaches a further 0.86.
-    const fold = Math.acos(Math.max(-0.77, Math.min(1, (rel - 1.1) / 0.4)));
-    const seated = Math.max(0, 0.72 - rel);
-    const u = Math.max(0, Math.min(1, seated / 0.25));
-    const armsDown = u * u * (3 - 2 * u);
-    p[RISE] += seated * grounded;
+
+    const seated = Math.max(0, SEAT_HEIGHT - rel);
+    const floor = Math.max(rel, SEAT_HEIGHT); // neck down to the floor
+    const u = Math.max(0, Math.min(1, (1.05 - rel) / 0.33));
+    const sitting = u * u * (3 - 2 * u);
+    // Sitting, the feet rest out in front as far as there is room for them.
+    const room = Math.max(0.18, Math.min(0.5, this.ahead / this.look.height - 0.26));
+    const forward = 0.08 + (room - 0.08) * sitting;
+    // How high the ankle must sit depends on the shin's tilt (the foot hangs forward of
+    // it), and the tilt depends on where the ankle is, so settle it in a few passes.
+    let thigh = 0;
+    let shin = 0;
+    let bend = 0;
+    let clearance = 0.065;
+    for (let pass = 0; pass < 4; pass++) {
+      const down = floor - HIP_DROP - clearance;
+      const reach = Math.max(0.06, Math.min(LEG_BONE * 2 - 0.002, Math.hypot(forward, down)));
+      const toward = Math.atan2(forward, down); // 0 = straight down, positive = forward
+      bend = Math.acos(reach / (LEG_BONE * 2));
+      thigh = toward + bend;
+      shin = toward - bend;
+      clearance = Math.max(HEEL, FOOT_HALF + FOOT_DROP * Math.cos(shin) - FOOT_AHEAD * Math.sin(shin));
+    }
+
+    const v = Math.max(0, Math.min(1, seated / 0.12));
+    const armsDown = v * v * (3 - 2 * v);
+    // Feet planted: no bobbing, and no forward lean (it would dip the feet).
+    p[RISE] += (seated - p[RISE]) * grounded;
+    p[PITCH] += (0 - p[PITCH]) * grounded;
+    // Someone sitting on the bottom sits still. Panic shows in the arms instead: hands
+    // fly up to the face and tremble.
+    p[ROLL] *= 1 - armsDown;
+    const fright = this.wPanic;
+    const tremble = 0.045 * Math.sin((time + this.seed) * 19) * fright;
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
       const l = LEG[i];
-      p[l] += (-fold - p[l]) * grounded;
-      p[l + 1] += (side * 0.14 - p[l + 1]) * grounded;
-      p[l + 2] += (Math.max(0, fold - 0.1) - p[l + 2]) * grounded;
+      p[l] += (-thigh - p[l]) * grounded;
+      p[l + 1] += (side * 0.1 - p[l + 1]) * grounded;
+      p[l + 2] += (2 * bend - p[l + 2]) * grounded;
       p[l + 3] += (0 - p[l + 3]) * grounded;
-      p[l + 4] += (0.1 - p[l + 4]) * grounded;
-      // Out of the water there is nothing to scull: arms rest at the sides.
+      p[l + 4] += (shin - p[l + 4]) * grounded; // keeps the sole level
+      // Out of the water there is nothing to scull: arms rest at the sides, or come up
+      // to the cheeks in a fright.
       const a = ARM[i];
-      p[a] += (0.1 - p[a]) * armsDown;
+      p[a] += (0.1 - 1.3 * fright - p[a]) * armsDown;
       p[a + 1] += (0 - p[a + 1]) * armsDown;
-      p[a + 2] += (side * 0.22 - p[a + 2]) * armsDown;
-      p[a + 3] += (-0.5 - p[a + 3]) * armsDown;
-      p[a + 4] += (0 - p[a + 4]) * armsDown;
+      p[a + 2] += (side * (0.22 - 0.1 * fright) - p[a + 2]) * armsDown;
+      p[a + 3] += (-0.5 - 1.55 * fright + tremble * side - p[a + 3]) * armsDown;
+      p[a + 4] += (-side * 0.42 * fright - p[a + 4]) * armsDown;
     }
   }
 
@@ -450,7 +493,7 @@ export class Swimmer {
       this.fillPanic(scratch, time, k);
       this.blend(this.wPanic);
     }
-    this.touchBottom(p);
+    this.touchBottom(p, time);
 
     // Whole body
     const drop = (1 - this.spawn) * (1 - this.spawn);
