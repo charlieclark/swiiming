@@ -70,6 +70,9 @@ export class Swimmer {
   flowNow = 0;
   /** Lifetime total, litres. */
   released = 0;
+  /** How long the current (or most recent) pee has lasted, in simulated seconds. */
+  peeSeconds = 0;
+  private wasPeeing = false;
   /** Litres released but not yet handed to the solver. */
   pending = 0;
 
@@ -82,6 +85,8 @@ export class Swimmer {
 
   /** Free radius around the swimmer (m), set by the manager each frame. */
   space = 1;
+  /** Depth of the water they are in (m), set by the manager. */
+  depth = 2.4;
   /** How active the swimmer is at the surface right now (drives ripples). */
   splash = 0;
 
@@ -248,7 +253,9 @@ export class Swimmer {
 
   /** Short description of what the swimmer is doing. */
   get status() {
-    const base = this.mood === 'exposed' ? 'Panicking' : 'Treading water';
+    const rel = this.depth / this.look.height;
+    const posture = rel < 0.72 ? 'Sitting' : rel < 1.5 ? 'Standing' : 'Treading water';
+    const base = this.mood === 'exposed' ? 'Panicking' : posture;
     return this.peeing ? `${base}, peeing` : base;
   }
 
@@ -289,6 +296,11 @@ export class Swimmer {
     this.flowNow = approach(this.flowNow, this.peeing && !this.removing ? this.look.flow : 0, 1.6, dt);
     if (this.flowNow < 1e-5) this.flowNow = 0;
     const q = this.flowNow * dt * timeScale;
+    if (this.peeing) {
+      if (!this.wasPeeing) this.peeSeconds = 0;
+      this.peeSeconds += dt * timeScale;
+    }
+    this.wasPeeing = this.peeing;
     this.released += q;
     this.pending += q;
 
@@ -389,6 +401,40 @@ export class Swimmer {
     }
   }
 
+  /**
+   * Water too shallow to tread in: put the feet on the bottom. Down to neck-deep the
+   * swimmer crouches so the water stays at their neck; shallower than that they sit on
+   * the floor with knees up, and the body rises out of the water.
+   */
+  private touchBottom(p: Float32Array) {
+    const rel = this.depth / this.look.height; // depth in body-sized units
+    const t = Math.max(0, Math.min(1, (1.68 - rel) / 0.18));
+    const grounded = t * t * (3 - 2 * t);
+    if (grounded <= 0.001) return;
+    // Hips are 0.64 below the neck and a straight leg reaches a further 0.86.
+    const fold = Math.acos(Math.max(-0.77, Math.min(1, (rel - 1.1) / 0.4)));
+    const seated = Math.max(0, 0.72 - rel);
+    const u = Math.max(0, Math.min(1, seated / 0.25));
+    const armsDown = u * u * (3 - 2 * u);
+    p[RISE] += seated * grounded;
+    for (let i = 0; i < 2; i++) {
+      const side = i === 0 ? -1 : 1;
+      const l = LEG[i];
+      p[l] += (-fold - p[l]) * grounded;
+      p[l + 1] += (side * 0.14 - p[l + 1]) * grounded;
+      p[l + 2] += (Math.max(0, fold - 0.1) - p[l + 2]) * grounded;
+      p[l + 3] += (0 - p[l + 3]) * grounded;
+      p[l + 4] += (0.1 - p[l + 4]) * grounded;
+      // Out of the water there is nothing to scull: arms rest at the sides.
+      const a = ARM[i];
+      p[a] += (0.1 - p[a]) * armsDown;
+      p[a + 1] += (0 - p[a + 1]) * armsDown;
+      p[a + 2] += (side * 0.22 - p[a + 2]) * armsDown;
+      p[a + 3] += (-0.5 - p[a + 3]) * armsDown;
+      p[a + 4] += (0 - p[a + 4]) * armsDown;
+    }
+  }
+
   private blend(weight: number) {
     if (weight <= 0.001) return;
     const p = this.pose;
@@ -404,6 +450,8 @@ export class Swimmer {
       this.fillPanic(scratch, time, k);
       this.blend(this.wPanic);
     }
+    this.touchBottom(p);
+
     // Whole body
     const drop = (1 - this.spawn) * (1 - this.spawn);
     const sink = this.landed ? 0.05 * Math.exp(-this.landT * 4) * Math.cos(this.landT * 9) : 0;

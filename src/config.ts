@@ -5,13 +5,22 @@ export interface TankDims {
 }
 
 export const LIMITS = {
-  width: { min: 3, max: 25, step: 0.5 },
-  length: { min: 3, max: 50, step: 0.5 },
-  depth: { min: 1.6, max: 5, step: 0.1 },
+  width: { min: 0.7, max: 25, step: 0.1 },
+  length: { min: 1.4, max: 50, step: 0.1 },
+  depth: { min: 0.4, max: 5, step: 0.1 },
   swimmers: { min: 0, max: 100 },
 };
 
 export const DEFAULT_TANK: TankDims = { width: 8, length: 14, depth: 2.4 };
+
+/** Familiar bodies of water, as simple boxes. */
+export const PRESETS: { label: string; dims: TankDims }[] = [
+  { label: 'Bathtub', dims: { width: 0.7, length: 1.5, depth: 0.4 } },
+  { label: 'Hot tub', dims: { width: 2, length: 2, depth: 0.8 } },
+  { label: 'Backyard pool', dims: { width: 4, length: 8, depth: 1.5 } },
+  { label: '25 m pool', dims: { width: 12.5, length: 25, depth: 1.8 } },
+  { label: 'Olympic pool', dims: { width: 25, length: 50, depth: 2 } },
+];
 export const DEFAULT_SWIMMERS = 6;
 
 /** Height of the glass above the waterline (m). */

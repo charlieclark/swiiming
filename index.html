@@ -44,7 +44,7 @@
             <output id="out-depth"></output>
           </label>
           <div class="kv"><span>Volume</span><b id="volume"></b></div>
-          <p class="hint">Or drag the pool itself: the top edges for width and length, the base for depth.</p>
+          <div class="presets" id="presets" role="group" aria-label="Preset sizes"></div>
         </section>
 
         <section>
@@ -74,7 +74,6 @@
           <div class="assessment" id="assessment"></div>
           <div class="kv"><span>Released</span><b id="released">0.00 L</b></div>
           <div class="kv"><span>Peeing now</span><b id="peeing">0 of 0</b></div>
-          <p class="hint">Swimmers panic when the water at their face is worse than a typical public pool.</p>
         </section>
 
         <section class="actions">
@@ -101,6 +100,7 @@
       <div class="card-body">
         <div class="kv"><span>Released</span><b id="card-released"></b></div>
         <div class="kv"><span>Flow</span><b id="card-flow"></b></div>
+        <div class="kv"><span id="card-time-label">Peeing for</span><b id="card-time"></b></div>
         <div class="kv"><span>Water around them</span><b id="card-local"></b></div>
         <div class="kv"><span>Height</span><b id="card-height"></b></div>
         <button id="card-pee" type="button">Pee</button>

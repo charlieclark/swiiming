@@ -203,6 +203,31 @@ input[type='range']:focus-visible {
   white-space: nowrap;
 }
 
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.presets button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(23, 35, 44, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.presets button:hover {
+  background: #fff;
+}
+.presets button.on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
 .hint {
   margin: 9px 0 0;
   color: var(--muted);

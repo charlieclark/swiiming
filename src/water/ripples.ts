@@ -136,7 +136,7 @@ export class Ripples {
   configure(dims: TankDims) {
     this.size.set(dims.width, dims.length);
     const longest = Math.max(dims.width, dims.length);
-    const texelWorld = Math.max(0.035, longest / this.maxResolution);
+    const texelWorld = Math.max(0.02, longest / this.maxResolution);
     this.texelWorld = texelWorld;
     const w = Math.max(16, Math.round(dims.width / texelWorld));
     const h = Math.max(16, Math.round(dims.length / texelWorld));

@@ -218,13 +218,13 @@ export class WaterVolume {
     return tex;
   }
 
+  /** Resize the water body. The dye texture is kept until the solver sends a new one. */
   configure(dims: TankDims) {
     this.boxMin.set(-dims.width / 2, -dims.depth, -dims.length / 2);
     this.boxMax.set(dims.width / 2, 0, dims.length / 2);
     this.mesh.scale.set(dims.width, dims.depth, dims.length);
     this.mesh.position.set(0, -dims.depth / 2, 0);
     this.material.uniforms.uTankSize.value.set(dims.width, dims.length);
-    this.clear();
   }
 
   /** Replace the dye field with clean water. */

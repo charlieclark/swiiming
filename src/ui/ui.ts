@@ -1,4 +1,4 @@
-import { LIMITS, REFERENCE_PPM, type TankDims } from '../config';
+import { LIMITS, PRESETS, REFERENCE_PPM, type TankDims } from '../config';
 import type { Stage } from '../scene/stage';
 import type { Tank } from '../scene/tank';
 import type { Swimmer } from '../swimmers/swimmer';
@@ -45,6 +45,15 @@ function formatLitres(litres: number) {
   return `${litres.toFixed(2)} L`;
 }
 
+/** Seconds as m:ss, or h:mm:ss once past an hour. */
+function formatDuration(seconds: number) {
+  const s = Math.floor(seconds);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h > 0 ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
+}
+
 /** Sets text only when it changed, to avoid needless layout work every frame. */
 class Text {
   private last = '';
@@ -68,6 +77,7 @@ export class UI {
   private portrait = $('portrait');
   private cardPee = $<HTMLButtonElement>('card-pee');
   private soundOn = true;
+  private presetButtons: HTMLButtonElement[] = [];
   private screen = { x: 0, y: 0 };
   private text = {
     ppm: new Text($('ppm')),
@@ -83,6 +93,8 @@ export class UI {
     cardStatus: new Text($('card-status')),
     cardReleased: new Text($('card-released')),
     cardFlow: new Text($('card-flow')),
+    cardTime: new Text($('card-time')),
+    cardTimeLabel: new Text($('card-time-label')),
     cardLocal: new Text($('card-local')),
     cardHeight: new Text($('card-height')),
     cardPee: new Text(this.cardPee),
@@ -116,6 +128,20 @@ export class UI {
     bindDim('length');
     bindDim('depth');
     this.showVolume();
+
+    const presets = $('presets');
+    for (const preset of PRESETS) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = preset.label;
+      button.addEventListener('click', () => {
+        this.setDims(preset.dims);
+        this.cb.onDims({ ...preset.dims });
+      });
+      presets.appendChild(button);
+      this.presetButtons.push(button);
+    }
+    this.markPreset();
 
     this.countInput.addEventListener('input', () => this.cb.onCount(Number(this.countInput.value)));
     $('sub-minus').addEventListener('click', () => this.cb.onCount(Number(this.countInput.value) - 1));
@@ -184,7 +210,19 @@ export class UI {
     return Math.max(0, Math.min(1, ppm / (REFERENCE_PPM * METER_SPAN)));
   }
 
+  /** Highlight the preset that matches the current size, if any. */
+  private markPreset() {
+    PRESETS.forEach((preset, i) => {
+      const match =
+        preset.dims.width === this.dims.width &&
+        preset.dims.length === this.dims.length &&
+        preset.dims.depth === this.dims.depth;
+      this.presetButtons[i]?.classList.toggle('on', match);
+    });
+  }
+
   private showVolume() {
+    this.markPreset();
     const litres = this.dims.width * this.dims.length * this.dims.depth * 1000;
     $('volume').textContent = `${Math.round(litres).toLocaleString('en-US')} L`;
   }
@@ -244,6 +282,8 @@ export class UI {
     this.text.cardStatus.set(s.status);
     this.text.cardReleased.set(formatLitres(s.released));
     this.text.cardFlow.set(`${Math.round(s.flowNow * 1000)} mL/s`);
+    this.text.cardTimeLabel.set(s.peeing || s.peeSeconds === 0 ? 'Peeing for' : 'Last pee');
+    this.text.cardTime.set(formatDuration(s.peeSeconds));
     const local = formatConcentration(s.exposure * 1000);
     this.text.cardLocal.set(`${local.value} ${local.unit}`);
     this.text.cardHeight.set(`${s.heightM.toFixed(2)} m`);
