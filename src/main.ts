@@ -6,6 +6,7 @@ import { Tank, type EdgeHandle } from './scene/tank';
 import { FluidClient } from './sim/client';
 import { SwimmerManager } from './swimmers/manager';
 import type { Swimmer } from './swimmers/swimmer';
+import { showStartupTimings } from './ui/debug';
 import { UI } from './ui/ui';
 import { Ripples } from './water/ripples';
 import { WaterSurface } from './water/surface';
@@ -13,14 +14,17 @@ import { WaterVolume } from './water/volume';
 
 const quality = detectQuality();
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
+performance.mark('pool:script');
 const stage = new Stage(canvas, quality);
+performance.mark('pool:stage');
 const sound = new Sound();
 
 const ripples = new Ripples(stage.renderer, quality.rippleMax);
-const tank = new Tank(stage.renderer, ripples);
+const tank = new Tank(stage.renderer, ripples, quality.reflections);
 const surface = new WaterSurface(ripples, stage.sunDir);
 const volume = new WaterVolume(ripples, quality.marchSteps, stage.sunDir);
 const fluid = new FluidClient(quality.simCells);
+performance.mark('pool:objects');
 
 let dims: TankDims = { ...DEFAULT_TANK };
 /** True while the main button is holding everyone's release open. */
@@ -131,6 +135,7 @@ function layout() {
 layout();
 configure(true);
 for (let i = 0; i < DEFAULT_SWIMMERS; i++) swimmers.add(true);
+performance.mark('pool:configured');
 ui.setCount(swimmers.count, swimmers.capacity);
 
 window.addEventListener('resize', () => {
@@ -329,6 +334,7 @@ let last = performance.now();
 let time = 0;
 let cardShown = false;
 
+let frames = 0;
 function frame(now: number) {
   const dt = Math.min(0.1, Math.max(0.001, (now - last) / 1000));
   last = now;
@@ -360,13 +366,27 @@ function frame(now: number) {
   surface.update(time);
   volume.update(stage.camera, stage.sceneColor, stage.sceneDepth, stage.resolution, time);
   stage.render();
+  if (frames < 3) performance.mark(`pool:frame-${++frames}`);
   const portrait = swimmers.selected ? ui.portraitRect() : null;
   if (portrait && swimmers.selected) stage.renderPortrait(portrait, swimmers.selected.headMatrix, tank.opaque);
   ui.updateLabels(stage, tank, dims);
 
   requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
+
+// Compile shaders first (off the main thread where the browser allows), then start.
+function start() {
+  performance.mark('pool:compiled');
+  last = performance.now();
+  requestAnimationFrame((now) => {
+    frame(now);
+    const loading = document.getElementById('loading');
+    loading?.classList.add('done');
+    setTimeout(() => loading?.remove(), 500);
+  });
+}
+stage.precompile().then(start, start);
+showStartupTimings(stage.renderer);
 
 document.addEventListener('visibilitychange', () => {
   last = performance.now();

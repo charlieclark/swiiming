@@ -78,6 +78,11 @@ export interface Quality {
   marchSteps: number;
   shadowMap: number;
   rippleMax: number;
+  /**
+   * Whether to build a reflection environment. It makes glass and steel look better, but
+   * building it and compiling the longer shaders it needs is slow on phone GPUs.
+   */
+  reflections: boolean;
 }
 
 export function detectQuality(): Quality {
@@ -86,8 +91,8 @@ export function detectQuality(): Quality {
   const mobile = coarse && small;
   const dpr = window.devicePixelRatio || 1;
   return mobile
-    ? { mobile, pixelRatio: Math.min(dpr, 1.5), simCells: 20000, marchSteps: 26, shadowMap: 1024, rippleMax: 256 }
-    : { mobile, pixelRatio: Math.min(dpr, 2), simCells: 52000, marchSteps: 44, shadowMap: 2048, rippleMax: 384 };
+    ? { mobile, pixelRatio: Math.min(dpr, 1.5), simCells: 20000, marchSteps: 26, shadowMap: 1024, rippleMax: 256, reflections: false }
+    : { mobile, pixelRatio: Math.min(dpr, 2), simCells: 52000, marchSteps: 44, shadowMap: 2048, rippleMax: 384, reflections: true };
 }
 
 export const COLORS = {

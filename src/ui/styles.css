@@ -48,6 +48,33 @@ body {
   overflow: hidden;
 }
 
+/* Shown from the first paint until the first frame of the pool is drawn. */
+#loading {
+  position: fixed;
+  left: calc(50% + (var(--panel-w) + 16px) / 2);
+  top: 46%;
+  transform: translate(-50%, -50%);
+  padding: 9px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: loading-pulse 1.4s ease-in-out infinite;
+  transition: opacity 0.35s;
+}
+#loading.done {
+  opacity: 0;
+  animation: none;
+}
+@keyframes loading-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
 .dim {
   position: absolute;
   left: 0;
@@ -547,6 +574,10 @@ footer p {
   }
   .masthead {
     display: none;
+  }
+  #loading {
+    left: 50%;
+    top: 40%;
   }
   #chip {
     display: block;

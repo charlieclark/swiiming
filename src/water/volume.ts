@@ -38,7 +38,6 @@ export class WaterVolume {
         uBoxMax: { value: this.boxMax },
         uInvViewProj: { value: this.invViewProj },
         uViewProj: { value: this.viewProj },
-        uSteps: { value: steps },
         uSunDir: { value: sunDir },
         uRipple: { value: ripples.texture },
         uTankSize: { value: new THREE.Vector2(1, 1) },
@@ -65,7 +64,8 @@ export class WaterVolume {
         uniform vec3 uBoxMax;
         uniform mat4 uInvViewProj;
         uniform mat4 uViewProj;
-        uniform float uSteps;
+        // A fixed loop length compiles faster than a loop with an early exit.
+        #define STEPS ${Math.max(8, Math.round(steps))}
         uniform vec3 uSunDir;
         uniform float uDyeMax;
         varying vec3 vWorld;
@@ -175,13 +175,12 @@ export class WaterVolume {
             bg = mix(bg, mirror, clamp(f, 0.0, 1.0) * 0.92);
           }
 
-          float ds = len / uSteps;
+          float ds = len / float(STEPS);
           float jitter = ign(gl_FragCoord.xy);
           vec3 trans = vec3(1.0);
           vec3 light = vec3(0.0);
           vec3 boxSize = uBoxMax - uBoxMin;
-          for (int i = 0; i < 64; i++) {
-            if (float(i) >= uSteps) break;
+          for (int i = 0; i < STEPS; i++) {
             vec3 p = pEnter + dir * (float(i) + jitter) * ds;
             vec3 q = (p - uBoxMin) / boxSize;
             float e = texture(uDye, q).r;
