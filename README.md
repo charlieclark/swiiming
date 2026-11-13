@@ -20,6 +20,9 @@ npm run build
 
 `npm run build` type-checks and writes a static site to `dist/` that can be hosted anywhere.
 
+The link preview tags in `index.html` point at `https://pool.charliie.co/`, and the preview image is
+`public/og.jpg`. Update both if the site moves.
+
 ## Controls
 
 - **Pool size**: use the sliders, pick a preset (bathtub, hot tub, backyard pool, 25 m pool, Olympic pool),
