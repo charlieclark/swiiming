@@ -25,6 +25,9 @@ export class Stage {
   private fitDistance = 20;
   private autoFrameUntil = 0;
   private viewShift = { x: 0, y: 0 };
+  private portraitCamera = new THREE.PerspectiveCamera(21, 1, 0.25, 2.1);
+  private portraitUp = new THREE.Vector3();
+  private portraitAt = new THREE.Vector3();
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -193,6 +196,40 @@ export class Stage {
     this.transparent.visible = true;
     r.setRenderTarget(null);
     r.render(this.scene, this.camera);
+  }
+
+  /**
+   * Draw a close-up of a head into a rectangle of the canvas (CSS pixels, as from
+   * getBoundingClientRect). The far plane is close enough that only that swimmer and
+   * the plain backdrop are visible, like an ID photo.
+   */
+  renderPortrait(rect: DOMRect, headMatrix: THREE.Matrix4) {
+    const canvasRect = this.canvas.getBoundingClientRect();
+    const w = Math.round(rect.width);
+    const h = Math.round(rect.height);
+    if (w < 8 || h < 8) return;
+    const x = Math.round(rect.left - canvasRect.left);
+    const y = Math.round(canvasRect.bottom - rect.bottom);
+    const cam = this.portraitCamera;
+    const e = headMatrix.elements;
+    // Head centre sits at local (0, 0.12, 0.014); its +Z axis is the way the face points.
+    this.portraitAt.set(0, 0.118, 0.014).applyMatrix4(headMatrix);
+    this.portraitUp.set(e[4], e[5], e[6]).normalize();
+    cam.position.set(0, 0.125, 0.99).applyMatrix4(headMatrix);
+    cam.up.copy(this.portraitUp);
+    cam.lookAt(this.portraitAt);
+    cam.aspect = w / h;
+    cam.updateProjectionMatrix();
+
+    const r = this.renderer;
+    r.setViewport(x, y, w, h);
+    r.setScissor(x, y, w, h);
+    r.setScissorTest(true);
+    this.transparent.visible = false;
+    r.render(this.scene, cam);
+    this.transparent.visible = true;
+    r.setScissorTest(false);
+    r.setViewport(0, 0, canvasRect.width, canvasRect.height);
   }
 
   /** Project a world position to CSS pixels. Returns false when behind the camera. */

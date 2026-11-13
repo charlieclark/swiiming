@@ -1,4 +1,4 @@
-# Aquatic Micturition Dispersion Study
+# Aquatic Micturition Dispersion
 
 A 3D simulation of what happens when everyone in the pool pees at once. Presented with a straight face.
 
@@ -22,38 +22,49 @@ npm run build
 
 ## Controls
 
-- **Tank sliders**: width, length and depth of the pool. Changing them replaces the water.
-- **Subjects**: add or remove swimmers (0 to 20). They tread water where you put them.
-- **Drag a swimmer** to reposition them. Drag anywhere else to orbit, scroll or pinch to zoom.
-- **PEE** (or the space bar): every swimmer releases at the same time.
-- **Drain and refill**: fresh water, counters reset.
+- **Pool sliders**: width, length and depth. Changing them replaces the water.
+- **Swimmers**: up to 100, or fewer if the pool is too small to hold them. **Spread evenly** sends everyone
+  to an evenly spaced spot.
+- **Click a swimmer** to open their card: a live view of their face, how much they have released, their
+  flow rate, and the concentration of the water around them. The card has its own Pee button.
+- **Drag a swimmer** (anywhere on the body) to move them. Drag empty space to orbit, scroll or pinch to zoom.
+- **Simultaneous release** (or the space bar): everyone pees until you press it again.
+- **Drain and refill**: fresh water, everyone stops.
+
+## What the swimmers do
+
+- Tread water, with arms tucked in when they are crowded or near a wall.
+- Look relaxed while peeing.
+- Panic when the water at their face goes bad, and swim toward cleaner water if there is any nearby.
+- Give up after enough time in bad water: they float on their back (or just hang there if there is no room).
 
 ## What is simulated
 
 - **Dye transport**: a 3D stable-fluids solver (`src/sim/fluid.ts`) running in a Web Worker. Velocity is
   self-advected and pressure-projected; dye uses MacCormack advection so filaments stay sharp. Treading
-  legs and sculling arms stir the water, and dragging a swimmer pushes water with them.
-- **Surface**: a GPU heightfield ripple simulation (`src/water/ripples.ts`) that also drives the caustics
-  on the tank floor.
+  legs, sculling arms and moving swimmers stir the water.
+- **Surface**: a GPU heightfield ripple simulation (`src/water/ripples.ts`). Swimmers disturb it with their
+  hands and bodies, and it drives part of the caustic light on the floor.
 - **Rendering**: the water body is raymarched (`src/water/volume.ts`) with per-channel absorption for water
   and dye, refraction through the rippling surface, and a mirrored underside when viewed from below.
-- **Readout**: concentration is real arithmetic, litres released over litres in the tank. Each release is
-  0.3 to 0.5 L per swimmer. The reference mark on the meter is the roughly 90 ppm estimated for a public
-  pool by Blackstock et al. (2017).
+  Swimmers are drawn with five instanced meshes, so a hundred cost the same draw calls as one.
+- **Readout**: the pool-average concentration assumes a well-mixed pool that overflows as liquid is added.
+  The reference mark on the meter is the roughly 90 ppm implied by Blackstock et al., *Environ. Sci.
+  Technol. Lett.* 2017, 4, 149-153, who estimated 75 L of urine in a 220,000 US gallon public pool.
 
-The one liberty taken is the tracer gain. At realistic concentrations urine is invisible in a pool, so the
-dye is rendered far more strongly than it would appear.
+The one liberty taken is the colour. At realistic concentrations urine is invisible in a pool, so the dye
+is rendered far more strongly than it would appear.
 
 ## Layout
 
 ```
 src/
-  main.ts            wiring and the frame loop
-  config.ts          limits, defaults, quality tiers
+  main.ts            wiring, pointer handling and the frame loop
+  config.ts          limits, packing, quality tiers
   audio.ts           synthesised sound
   sim/               fluid solver, worker, main-thread client
   water/             ripples, surface reflection, raymarched volume
-  scene/             renderer + camera, tank geometry
-  swimmers/          figures, animation states, placement and dragging
-  ui/                panel, labels, event log
+  scene/             renderer + camera + portrait view, pool geometry
+  swimmers/          appearance, skeleton and poses, instanced drawing, crowd management
+  ui/                panel, swimmer card, dimension labels
 ```

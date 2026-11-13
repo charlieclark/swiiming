@@ -6,6 +6,9 @@ export class Sound {
   private noise: AudioBuffer | null = null;
   private streamGain: GainNode | null = null;
   private streamLevel = 0;
+  private thrashGain: GainNode | null = null;
+  private thrashLevel = 0;
+  private lastSplash = 0;
   private bubbleTimer = 0;
 
   /** Must be called from a user gesture. Safe to call repeatedly. */
@@ -51,6 +54,22 @@ export class Sound {
     this.streamGain = ctx.createGain();
     this.streamGain.gain.value = 0;
     stream.connect(streamFilter).connect(this.streamGain).connect(this.master);
+
+    // Thrashing: churned-up water when swimmers panic or flee.
+    const thrash = this.loop();
+    const thrashFilter = ctx.createBiquadFilter();
+    thrashFilter.type = 'bandpass';
+    thrashFilter.frequency.value = 900;
+    thrashFilter.Q.value = 0.5;
+    const wobble = ctx.createOscillator();
+    wobble.frequency.value = 5.3;
+    const wobbleGain = ctx.createGain();
+    wobbleGain.gain.value = 350;
+    wobble.connect(wobbleGain).connect(thrashFilter.frequency);
+    wobble.start();
+    this.thrashGain = ctx.createGain();
+    this.thrashGain.gain.value = 0;
+    thrash.connect(thrashFilter).connect(this.thrashGain).connect(this.master);
   }
 
   private loop() {
@@ -66,16 +85,22 @@ export class Sound {
     if (this.master && this.ctx) this.master.gain.setTargetAtTime(on ? 0.9 : 0, this.ctx.currentTime, 0.05);
   }
 
-  /** Call every frame with the number of subjects currently voiding. */
-  update(dt: number, voiding: number) {
-    if (!this.ctx || !this.streamGain) return;
+  /**
+   * Call every frame with the number of swimmers peeing and how much thrashing is going
+   * on (roughly, the number of swimmers panicking or fleeing).
+   */
+  update(dt: number, voiding: number, commotion: number) {
+    if (!this.ctx || !this.streamGain || !this.thrashGain) return;
+    const thrashTarget = commotion > 0.05 ? Math.min(0.2, 0.035 + 0.03 * Math.sqrt(commotion)) : 0;
+    this.thrashLevel += (thrashTarget - this.thrashLevel) * Math.min(1, dt * 3);
+    this.thrashGain.gain.value = this.thrashLevel;
     const target = voiding > 0 ? 0.035 + 0.012 * Math.min(8, voiding) : 0;
     this.streamLevel += (target - this.streamLevel) * Math.min(1, dt * 4);
     this.streamGain.gain.value = this.streamLevel;
     if (voiding > 0) {
       this.bubbleTimer -= dt;
       if (this.bubbleTimer <= 0) {
-        this.bubbleTimer = (0.08 + Math.random() * 0.4) / Math.sqrt(voiding);
+        this.bubbleTimer = (0.08 + Math.random() * 0.4) / Math.sqrt(Math.min(voiding, 12));
         this.bubble();
       }
     }
@@ -102,21 +127,9 @@ export class Sound {
     this.tone(f, f * (1.5 + Math.random() * 0.6), 0.05 + Math.random() * 0.05, 0.035);
   }
 
-  /** Instrument acknowledgement when a release is initiated. */
-  initiate() {
-    this.tone(160, 70, 0.22, 0.25, 'sine');
-    this.tone(660, 660, 0.09, 0.05, 'sine', 0.02);
-  }
-
-  /** Two-note alert when a subject crosses the exposure threshold. */
-  alert() {
-    this.tone(880, 880, 0.09, 0.05, 'triangle');
-    this.tone(660, 660, 0.14, 0.05, 'triangle', 0.11);
-  }
-
-  /** Single soft confirmation tone. */
-  confirm() {
-    this.tone(520, 520, 0.12, 0.04, 'sine');
+  /** Soft thunk for the main button. */
+  press() {
+    this.tone(150, 70, 0.2, 0.22, 'sine');
   }
 
   tick() {
@@ -126,6 +139,9 @@ export class Sound {
   splash(strength: number) {
     if (!this.ctx || !this.master || !this.noise) return;
     const t = this.ctx.currentTime;
+    // Many swimmers arriving at once should not stack into one loud burst.
+    if (t - this.lastSplash < 0.07) return;
+    this.lastSplash = t;
     const src = this.ctx.createBufferSource();
     src.buffer = this.noise;
     const filter = this.ctx.createBiquadFilter();

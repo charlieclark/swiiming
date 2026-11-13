@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { COLORS, FREEBOARD, GLASS_THICKNESS, SLAB_THICKNESS, type TankDims } from '../config';
-import { DETAIL_WAVES } from '../water/glsl';
+import { CAUSTICS } from '../water/glsl';
 import type { Ripples } from '../water/ripples';
 
 const POST = 0.09;
@@ -55,7 +55,7 @@ export class Tank {
           uniform vec2 uRippleTexel;
           uniform float uTime;
           uniform float uDepth;
-          ${DETAIL_WAVES}
+          ${CAUSTICS}
           float causticAt(vec2 xz) {
             vec2 uv = xz / uTankSize + 0.5;
             vec2 t = uRippleTexel;
@@ -65,15 +65,14 @@ export class Tank {
               texture2D(uRipple, uv + vec2(0.0, t.y)).r + texture2D(uRipple, uv - vec2(0.0, t.y)).r - 4.0 * c;
             vec2 world = t * uTankSize;
             lap /= world.x * world.y;
-            // Analytic curvature of the detail wavelets, approximated by finite difference.
-            float e = 0.06;
-            vec3 a = detailWaves(xz + vec2(e, 0.0), uTime);
-            vec3 b = detailWaves(xz - vec2(e, 0.0), uTime);
-            vec3 c2 = detailWaves(xz + vec2(0.0, e), uTime);
-            vec3 d = detailWaves(xz - vec2(0.0, e), uTime);
-            float lapDetail = (a.y - b.y + c2.z - d.z) / (2.0 * e);
-            float focus = 1.0 - (lap * 0.6 + lapDetail) * uDepth * 0.55;
-            return clamp(focus, 0.55, 2.6);
+            vec2 fw = fwidth(xz);
+            float footprint = max(fw.x, fw.y);
+            float reach = min(uDepth, 2.5);
+            // Light focused or spread by ripples made by the swimmers.
+            float fade = 1.0 - smoothstep(0.15, 0.6, footprint);
+            float fromRipples = clamp(-lap * 0.16 * reach, -0.3, 0.8) * fade;
+            float ambient = causticPattern(xz * 1.6, uTime * 0.8, footprint * 1.6);
+            return clamp(mix(1.0, ambient, 0.2 + 0.09 * reach) + fromRipples, 0.5, 2.6);
           }`,
         )
         .replace(
@@ -81,7 +80,7 @@ export class Tank {
           /* glsl */ `#include <map_fragment>
           {
             float caustic = causticAt(vTankWorld.xz + vec2(0.31, 0.27) * uDepth * 0.4);
-            diffuseColor.rgb *= mix(1.0, caustic, 0.75);
+            diffuseColor.rgb *= caustic;
           }`,
         );
     };
